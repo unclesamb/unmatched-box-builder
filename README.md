@@ -41,5 +41,5 @@ Two adjustments are made on top of the template:
 
 ## Printing
 
-Letter, landscape, at 100% — no "fit to page". Solid lines are cuts, dashed lines are
-folds, no line means the piece is continuous, and an X marks a piece to discard.
+Letter, landscape, at 100% — no "fit to page". Solid lines are folds, dashed lines are
+cuts, and an X marks a piece to discard.
