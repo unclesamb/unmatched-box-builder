@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin=""/>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<style>
+  body { margin: 0; background: #131518; }
+  a { color: #CC9900; }
+  a:hover { color: #E8B21A; }
+</style>
+</helmet>
+<div style="min-height:100vh;background:#131518;color:#E9E6E0;font-family:'IBM Plex Sans',system-ui,sans-serif;padding:28px 32px 60px;box-sizing:border-box">
+  <div style="display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;border-bottom:1px solid #2A2F35;padding-bottom:16px;margin-bottom:24px">
+    <h1 style="font-family:Oswald,sans-serif;font-weight:600;font-size:26px;letter-spacing:0.08em;text-transform:uppercase;margin:0;color:#F3F0EA">Deck &amp; Mini Box Builder</h1>
+    <span style="font-size:13px;color:#8B929B">Upload art, name the character, pick colours — download both Word docs.</span>
+  </div>
+
+  <div style="display:grid;grid-template-columns:minmax(0,420px) minmax(0,1fr);gap:28px;align-items:start">
+    <div style="display:flex;flex-direction:column;gap:18px;min-width:0">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <sc-for list="{{ tabs }}" as="tab" hint-placeholder-count="2">
+          <button onClick="{{ tab.select }}" style="{{ tab.style }}">{{ tab.label }}</button>
+        </sc-for>
+        <sc-if value="{{ canAdd }}" hint-placeholder-val="{{ true }}">
+          <button onClick="{{ addCharacter }}" style="background:none;border:1px dashed #3C434B;color:#8B929B;font:inherit;font-size:13px;padding:7px 12px;border-radius:4px;cursor:pointer">+ Character</button>
+        </sc-if>
+        <sc-if value="{{ canRemove }}" hint-placeholder-val="{{ true }}">
+          <button onClick="{{ removeCharacter }}" style="background:none;border:1px solid #3C434B;color:#8B929B;font:inherit;font-size:13px;padding:7px 12px;border-radius:4px;cursor:pointer">Remove</button>
+        </sc-if>
+      </div>
+
+      <div style="background:#1A1E22;border:1px solid #262B31;border-radius:6px;padding:18px;display:flex;flex-direction:column;gap:16px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <label style="display:flex;flex-direction:column;gap:6px;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#8B929B">Name line 1
+            <input value="{{ name1 }}" onChange="{{ setName1 }}" placeholder="BLACKBEARD" style="background:#0F1215;border:1px solid #2E353C;border-radius:4px;color:#F3F0EA;font:inherit;font-size:14px;letter-spacing:0.04em;padding:9px 10px"/>
+          </label>
+          <label style="display:flex;flex-direction:column;gap:6px;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#8B929B">Name line 2 (optional)
+            <input value="{{ name2 }}" onChange="{{ setName2 }}" placeholder="" style="background:#0F1215;border:1px solid #2E353C;border-radius:4px;color:#F3F0EA;font:inherit;font-size:14px;letter-spacing:0.04em;padding:9px 10px"/>
+          </label>
+        </div>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#8B929B">Sidekick line (optional, deck box only)
+          <input value="{{ subtitle }}" onChange="{{ setSubtitle }}" placeholder="Sea Dogs" style="background:#0F1215;border:1px solid #2E353C;border-radius:4px;color:#F3F0EA;font:inherit;font-size:14px;padding:9px 10px"/>
+        </label>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <label style="display:flex;flex-direction:column;gap:8px;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#8B929B">Character art (front)
+            <div style="{{ frontDropStyle }}">
+              <sc-if value="{{ noFront }}" hint-placeholder-val="{{ true }}"><span style="font-family:ui-monospace,monospace;font-size:11px;color:#6E767F;text-transform:none;letter-spacing:0">drop card scan</span></sc-if>
+              <input type="file" accept="image/*" onChange="{{ setFront }}" style="position:absolute;inset:0;opacity:0;cursor:pointer"/>
+            </div>
+          </label>
+          <label style="display:flex;flex-direction:column;gap:8px;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#8B929B">Card back art
+            <div style="{{ backDropStyle }}">
+              <sc-if value="{{ noBack }}" hint-placeholder-val="{{ true }}"><span style="font-family:ui-monospace,monospace;font-size:11px;color:#6E767F;text-transform:none;letter-spacing:0">drop card back</span></sc-if>
+              <input type="file" accept="image/*" onChange="{{ setBack }}" style="position:absolute;inset:0;opacity:0;cursor:pointer"/>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <div style="background:#1A1E22;border:1px solid #262B31;border-radius:6px;padding:18px;display:flex;flex-direction:column;gap:14px">
+        <div style="font-family:Oswald,sans-serif;font-size:13px;letter-spacing:0.14em;text-transform:uppercase;color:#8B929B">Colours sampled from the art</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <span style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#6E767F">Box panels</span>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            <sc-for list="{{ boxSwatches }}" as="sw" hint-placeholder-count="8">
+              <button onClick="{{ sw.pick }}" title="{{ sw.hex }}" style="{{ sw.style }}"></button>
+            </sc-for>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <span style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#6E767F">Text</span>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            <sc-for list="{{ fontSwatches }}" as="sw" hint-placeholder-count="8">
+              <button onClick="{{ sw.pick }}" title="{{ sw.hex }}" style="{{ sw.style }}"></button>
+            </sc-for>
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#8B929B">Box
+            <input type="color" value="{{ boxColor }}" onChange="{{ setBoxColor }}" style="width:36px;height:26px;background:none;border:1px solid #2E353C;border-radius:4px;padding:0;cursor:pointer"/>
+            <code style="font-size:12px;color:#B7BDC5">{{ boxColor }}</code>
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#8B929B">Text
+            <input type="color" value="{{ fontColor }}" onChange="{{ setFontColor }}" style="width:36px;height:26px;background:none;border:1px solid #2E353C;border-radius:4px;padding:0;cursor:pointer"/>
+            <code style="font-size:12px;color:#B7BDC5">{{ fontColor }}</code>
+          </label>
+        </div>
+        <div style="{{ contrastStyle }}">{{ contrastLabel }}</div>
+        <sc-if value="{{ printNote }}"><div style="font-size:12px;color:#C9A227">{{ printNote }}</div></sc-if>
+      </div>
+
+      <div style="background:#1A1E22;border:1px solid #262B31;border-radius:6px;padding:18px;display:flex;flex-direction:column;gap:14px">
+        <div style="font-family:Oswald,sans-serif;font-size:13px;letter-spacing:0.14em;text-transform:uppercase;color:#8B929B">Fit</div>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:12px;color:#8B929B">Name size nudge — {{ nudgeLabel }}
+          <input type="range" min="0.7" max="1.3" step="0.05" value="{{ sizeNudge }}" onChange="{{ setNudge }}" style="width:100%"/>
+        </label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <sc-for list="{{ cropTabs }}" as="tab" hint-placeholder-count="3">
+            <button onClick="{{ tab.select }}" style="{{ tab.style }}">{{ tab.label }}</button>
+          </sc-for>
+          <button onClick="{{ resetCrop }}" style="background:none;border:1px solid #2E353C;color:#6E767F;font:inherit;font-size:12px;padding:5px 10px;border-radius:4px;cursor:pointer">Reset</button>
+        </div>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:12px;color:#8B929B">Crop zoom — {{ zoomLabel }}
+          <input type="range" min="1" max="3" step="0.05" value="{{ cropZoom }}" onChange="{{ setZoom }}" style="width:100%"/>
+        </label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <label style="display:flex;flex-direction:column;gap:6px;font-size:12px;color:#8B929B">Crop x
+            <input type="range" min="-1" max="1" step="0.05" value="{{ cropX }}" onChange="{{ setCropX }}" style="width:100%"/>
+          </label>
+          <label style="display:flex;flex-direction:column;gap:6px;font-size:12px;color:#8B929B">Crop y
+            <input type="range" min="-1" max="1" step="0.05" value="{{ cropY }}" onChange="{{ setCropY }}" style="width:100%"/>
+          </label>
+        </div>
+      </div>
+
+      <div style="background:#1A1E22;border:1px solid #262B31;border-radius:6px;padding:18px;display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+          <span style="font-family:Oswald,sans-serif;font-size:13px;letter-spacing:0.14em;text-transform:uppercase;color:#8B929B">Front nameplate</span>
+          <button onClick="{{ resetPlate }}" style="background:none;border:1px solid #2E353C;color:#6E767F;font:inherit;font-size:12px;padding:5px 10px;border-radius:4px;cursor:pointer">Reset</button>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <sc-for list="{{ plateTints }}" as="t" hint-placeholder-count="2">
+            <button onClick="{{ t.select }}" style="{{ t.style }}">{{ t.label }}</button>
+          </sc-for>
+        </div>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:12px;color:#8B929B">Deck box text size — {{ plateFontLabel }}
+          <input type="range" min="10" max="28" step="1" value="{{ plateFontSize }}" onChange="{{ setPlateFontSize }}" style="width:100%"/>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:12px;color:#8B929B">Mini box text size — {{ plateMiniFontLabel }}
+          <input type="range" min="6" max="20" step="1" value="{{ plateMiniFontSize }}" onChange="{{ setPlateMiniFontSize }}" style="width:100%"/>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:12px;color:#8B929B">Opacity — {{ plateOpacityLabel }}
+          <input type="range" min="0" max="1" step="0.05" value="{{ plateOpacity }}" onChange="{{ setPlateOpacity }}" style="width:100%"/>
+        </label>
+        <div style="display:grid;grid-template-columns:1fr;gap:12px">
+          <label style="display:flex;flex-direction:column;gap:6px;font-size:12px;color:#8B929B">Move y
+            <input type="range" min="-1" max="1" step="0.05" value="{{ plateY }}" onChange="{{ setPlateY }}" style="width:100%"/>
+          </label>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <button onClick="{{ generate }}" style="{{ generateStyle }}">{{ generateLabel }}</button>
+        <div style="font-size:12px;color:#8B929B;min-height:18px">{{ status }}</div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:22px;min-width:0">
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
+          <span style="font-family:Oswald,sans-serif;font-size:13px;letter-spacing:0.14em;text-transform:uppercase;color:#8B929B">Deck box net — {{ deckDims }}</span>
+          <button onClick="{{ toggleScale }}" style="{{ scaleStyle }}">{{ scaleLabel }}</button>
+        </div>
+        <div style="{{ scrollStyle }}">
+        <div style="{{ deckGridStyle }}">
+          <sc-for list="{{ deckCells }}" as="cell" hint-placeholder-count="63">
+            <div style="{{ cell.style }}">
+              <div style="{{ cell.clipStyle }}"></div>
+              <sc-if value="{{ cell.text }}"><span style="{{ cell.textStyle }}">{{ cell.text }}</span></sc-if>
+              <sc-if value="{{ cell.pileLabel }}">
+                <span style="{{ cell.pileStyle }}">
+                  <span style="{{ cell.arrowStyle }}">{{ cell.arrow }}</span>
+                  <span>{{ cell.pileLabel }}</span>
+                  <span style="{{ cell.arrowStyle }}">{{ cell.arrow }}</span>
+                </span>
+              </sc-if>
+              <sc-if value="{{ cell.overlay }}">
+                <div style="{{ cell.overlayStyle }}">
+                  <div style="{{ cell.overlayNameStyle }}">{{ cell.overlayName }}</div>
+                  <sc-if value="{{ cell.overlaySub }}"><div style="{{ cell.overlaySubStyle }}">{{ cell.overlaySub }}</div></sc-if>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+          <sc-for list="{{ deckLines }}" as="ln" hint-placeholder-count="0">
+            <div style="{{ ln.style }}"></div>
+          </sc-for>
+        </div>
+        </div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:11px;color:#6E767F">
+          <span style="display:flex;align-items:center;gap:6px"><span style="width:22px;border-top:1px solid #F3F0EA"></span>cut</span>
+          <span style="display:flex;align-items:center;gap:6px"><span style="width:22px;border-top:1px dashed #7C858E"></span>fold</span>
+          <span style="display:flex;align-items:center;gap:6px"><span style="font-family:'Times New Roman',serif;color:#7C858E">X</span>discard piece</span>
+          <span>no line = one continuous piece</span>
+        </div>
+      </div>
+      <div>
+        <div style="font-family:Oswald,sans-serif;font-size:13px;letter-spacing:0.14em;text-transform:uppercase;color:#8B929B;margin-bottom:8px">Mini box net — {{ miniDims }}</div>
+        <div style="{{ scrollStyle }}">
+        <div style="{{ miniGridStyle }}">
+          <sc-for list="{{ miniCells }}" as="cell" hint-placeholder-count="27">
+            <div style="{{ cell.style }}">
+              <div style="{{ cell.clipStyle }}"></div>
+              <sc-if value="{{ cell.text }}"><span style="{{ cell.textStyle }}">{{ cell.text }}</span></sc-if>
+              <sc-if value="{{ cell.overlay }}">
+                <div style="{{ cell.overlayStyle }}">
+                  <div style="{{ cell.overlayNameStyle }}">{{ cell.overlayName }}</div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+          <sc-for list="{{ miniLines }}" as="ln" hint-placeholder-count="0">
+            <div style="{{ ln.style }}"></div>
+          </sc-for>
+        </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;accent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#CC9900&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;#CC9900&quot;,&quot;#B85C38&quot;,&quot;#4F8A8B&quot;,&quot;#8B929B&quot;]},&quot;contrastTarget&quot;:{&quot;editor&quot;:&quot;float&quot;,&quot;default&quot;:4.5,&quot;min&quot;:3,&quot;max&quot;:7,&quot;step&quot;:0.5,&quot;tsType&quot;:&quot;number&quot;},&quot;maxCharacters&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:4,&quot;min&quot;:1,&quot;max&quot;:8,&quot;tsType&quot;:&quot;number&quot;},&quot;uprightMethod&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;rotate&quot;,&quot;options&quot;:[&quot;rotate&quot;,&quot;flip&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Upside-down panels&quot;}}">
+const DECK_COLS = [864, 1152, 1152, 3744, 1152, 3816, 1152, 1152, 864];
+// The bottom row is grown to match the top flap's depth (432 + the 335 twip top margin).
+const DECK_ROWS = [432, 1152, 1152, 5184, 1152, 1152, 767];
+const MINI_COLS = [595, 1581, 2376, 1578, 1578, 1581, 2389, 1581, 596];
+const MINI_ROWS = [1584, 3600, 1584];
+
+// Border codes lifted from the Word template, per cell: top,left,bottom,right.
+// s = single (cut line), d = dashed (fold line), n/. = no line (continuous card stock).
+// Cells with no explicit border override inherit TableGrid's solid line, so an
+// absent tag reads as 's' here, not as "no line".
+// Outer left/right edges of the table are page boundary, not cut lines: blanked.
+const DECK_BORDERS = [
+  ['nnnn', 'nnnn', 'nnnd', 'ndsd', 'ndnd', 'ndsd', 'ndnn', 'nnnn', 'nnnn'],
+  ['nnnn', 'nndn', 'nndd', 'sdsd', 'nddd', 'sdsd', 'nddn', 'nndn', 'nnnn'],
+  ['nndd', 'ddsd', 'ddds', 'ssss', 'dddd', 'sdss', 'dsdd', 'ddsd', 'nddn'],
+  ['dnds', 'ssss', 'dsds', 'ssss', 'dsds', 'ssss', 'dsds', 'ssss', 'dsdn'],
+  ['dnnd', 'sddd', 'ddds', 'ssss', 'dddd', 'sdss', 'dsdd', 'sddd', 'ddnn'],
+  ['nnnn', 'dnnn', 'dnnd', 'sdsd', 'ddnd', 'sdsd', 'ddnn', 'dnnn', 'nnnn'],
+  ['nndn', 'nndn', 'nndd', 'sddd', 'nddd', 'sddd', 'nddn', 'nndn', 'nndn']
+];
+const MINI_BORDERS = [
+  ['ssdn', 'snds', 'ssss', 'ssdn', 'sndd', 'sdds', 'ssss', 'ssdn', 'snds'],
+  ['dsds', 'dsds', 'ssss', 'dsds', 'dsds', 'dsds', 'ssss', 'dsds', 'dsds'],
+  ['dssn', 'dnss', 'ssss', 'dssn', 'dnsd', 'ddss', 'ssss', 'dssn', 'dnss']
+];
+
+// r,c -> what the cell holds. fill = coloured panel.
+const DECK_MAP = {
+  '1,3': { fill: 1 }, '1,5': { fill: 1 },
+  '2,1': { fill: 1 }, '2,2': { fill: 1 }, '2,3': { fill: 1, name: 1 }, '2,4': { fill: 1 },
+  '2,5': { fill: 1, name: 1, upside: 1 }, '2,6': { fill: 1 }, '2,7': { fill: 1 },
+  '1,1': { mark: 'X' }, '1,4': { mark: 'x' }, '1,7': { mark: 'X' },
+  '5,1': { mark: 'X' }, '5,7': { mark: 'X' }, '6,4': { mark: 'X' },
+  '3,0': { pile: 'Discard Pile', arrow: '\u2190', rot: -90, pt: 20 },
+  '3,1': { fill: 1 }, '3,2': { fill: 1, name: 1, rot: -90 }, '3,3': { fill: 1, img: 'back' },
+  '3,4': { fill: 1, name: 1, rot: 90 }, '3,5': { fill: 1, img: 'front', overlay: 1 },
+  '3,6': { fill: 1, name: 1, rot: -90 }, '3,7': { fill: 1 },
+  '3,8': { pile: 'Draw Pile', arrow: '\u2192', rot: -90, pt: 20 },
+  '4,1': { fill: 1 }, '4,2': { fill: 1 }, '4,3': { fill: 1, name: 1, upside: 1 }, '4,4': { fill: 1 },
+  '4,5': { fill: 1, name: 1 }, '4,6': { fill: 1 }, '4,7': { fill: 1 },
+  '5,3': { fill: 1 }, '5,5': { fill: 1 }
+};
+const MINI_MAP = {
+  '0,0': { fill: 1 }, '0,1': { fill: 1 }, '0,2': { fill: 1, name: 1 }, '0,3': { fill: 1 },
+  '0,4': { fill: 1 }, '0,6': { fill: 1, name: 1, upside: 1 }, '0,7': { fill: 1 }, '0,8': { fill: 1 },
+  '1,1': { fill: 1, name: 1, rot: -90 }, '1,2': { fill: 1, img: 'front' }, '1,3': { fill: 1 },
+  '1,4': { fill: 1 }, '1,5': { fill: 1, name: 1, rot: 90 },
+  '1,6': { fill: 1, img: 'front', overlay: 1 },
+  '1,7': { fill: 1, name: 1, rot: -90 },
+  '2,0': { fill: 1 }, '2,1': { fill: 1 }, '2,2': { fill: 1, name: 1 }, '2,3': { fill: 1 },
+  '2,4': { fill: 1 }, '2,6': { fill: 1, name: 1 }, '2,7': { fill: 1 }, '2,8': { fill: 1 }
+};
+MINI_MAP['2,2'] = { fill: 1, name: 1, upside: 1 };
+
+// Image extents as placed in the Word template (EMU); 1 twip = 635 EMU.
+const EXTENTS = {
+  deck: { '3,3': [2315719, 3225972], '3,5': [2283285, 3283450] },
+  mini: { '1,2': [1431784, 2281747], '1,6': [1431784, 2281747] }
+};
+const SOFT_EDGE_EMU = 38100;
+
+function crop0() { return { zoom: 1, offsetX: 0, offsetY: 0 }; }
+
+function blank(i) {
+  return {
+    id: 'c' + i + '-' + Math.random().toString(36).slice(2, 7),
+    name1: '', name2: '', subtitle: '',
+    boxColor: '#006666', fontColor: '#CC9900',
+    sizeNudge: 1,
+    crops: { deckFront: crop0(), deckBack: crop0(), mini: crop0() },
+    plate: { tint: 'white', opacity: 0.75, offsetX: 0, offsetY: 0, fontSize: 18, miniFontSize: 12 },
+    front: null, back: null, palette: []
+  };
+}
+
+class Component extends DCLogic {
+  state = { chars: [blank(0)], active: 0, status: '', busy: false, lib: null, trueScale: false };
+
+  dims(kind) {
+    const cols = kind === 'deck' ? DECK_COLS : MINI_COLS;
+    const rows = kind === 'deck' ? DECK_ROWS : MINI_ROWS;
+    const inch = (v) => (v / 1440).toFixed(2);
+    const w = cols.reduce((a, b) => a + b, 0), h = rows.reduce((a, b) => a + b, 0);
+    const panelC = kind === 'deck' ? 3 : 2, panelR = kind === 'deck' ? 3 : 1;
+    return 'net ' + inch(w) + ' × ' + inch(h) + ' in · card panel ' +
+      inch(cols[panelC]) + ' × ' + inch(rows[panelR]) + ' in';
+  }
+
+  componentDidMount() {
+    import('./boxdoc.js').then((lib) => this.setState({ lib })).catch((e) =>
+      this.setState({ status: 'Could not load generator: ' + e.message })
+    );
+  }
+
+  cur() { return this.state.chars[this.state.active]; }
+
+  setPlate(changes) {
+    this.patch({ plate: Object.assign({}, this.cur().plate, changes) });
+  }
+
+  setCrop(changes) {
+    const key = this.state.cropTarget || 'deckFront';
+    const crops = Object.assign({}, this.cur().crops);
+    crops[key] = Object.assign({}, crops[key], changes);
+    this.patch({ crops });
+  }
+
+  patch(changes) {
+    this.setState((s) => {
+      const chars = s.chars.slice();
+      chars[s.active] = Object.assign({}, chars[s.active], changes);
+      return { chars };
+    });
+  }
+
+  async readImage(file, slot) {
+    const bmp = await createImageBitmap(file);
+    const canvas = document.createElement('canvas');
+    const scale = Math.min(1, 160 / Math.max(bmp.width, bmp.height));
+    canvas.width = Math.max(1, Math.round(bmp.width * scale));
+    canvas.height = Math.max(1, Math.round(bmp.height * scale));
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const lib = this.state.lib;
+    const palette = lib ? lib.samplePalette(data, 10) : [];
+    const rec = { blob: file, width: bmp.width, height: bmp.height, url: URL.createObjectURL(file), palette };
+    const merged = this.mergePalette(slot, palette);
+    const changes = { [slot]: rec, palette: merged };
+    const cur = this.cur();
+    if (lib && slot === 'back') {
+      // The box should blend into the card's edge, so the back art's border colour wins.
+      const box = lib.edgeColor(data);
+      if (box) {
+        changes.boxColor = box;
+        changes.palette = [box].concat(merged.filter((h) => h !== box)).slice(0, 14);
+        const font = this.bestFont(box, changes.palette, lib);
+        if (font) changes.fontColor = font;
+      }
+    } else if (lib && merged.length) {
+      if (cur.back) {
+        const font = this.bestFont(cur.boxColor, merged, lib);
+        if (font) changes.fontColor = font;
+      } else {
+        const best = this.autoPair(merged, lib);
+        if (best) { changes.boxColor = best.box; changes.fontColor = best.font; }
+      }
+    }
+    this.patch(changes);
+  }
+
+  mergePalette(slot, palette) {
+    const c = this.cur();
+    const other = slot === 'front' ? c.back : c.front;
+    const list = palette.concat(other && other.palette ? other.palette : []);
+    return list.filter((h, i) => list.indexOf(h) === i).slice(0, 14);
+  }
+
+  // Best text colour for a box colour that is already fixed.
+  bestFont(box, palette, lib) {
+    let best = null;
+    for (const font of palette) {
+      if (font.toUpperCase() === box.toUpperCase()) continue;
+      const score = Math.min(lib.contrast(box, font), 10) - (lib.printNote(font) ? 4 : 0);
+      if (!best || score > best.score) best = { font, score };
+    }
+    return best && best.score > 0 ? best.font : null;
+  }
+
+  autoPair(palette, lib) {
+    let best = null;
+    for (const box of palette) {
+      for (const font of palette) {
+        if (box === font) continue;
+        const ratio = lib.contrast(box, font);
+        const lum = lib.relLuminance(box);
+        if (ratio < 4.5) continue;
+        // Favour mid-luminance, saturated panels like the template's own teal/green;
+        // print warnings outweigh the pull toward dark boxes.
+        const mid = 1 - Math.abs(lum - 0.18) / 0.35;
+        const v = box.replace('#', '');
+        const ch = [0, 2, 4].map((i) => parseInt(v.slice(i, i + 2), 16));
+        const mx = Math.max.apply(null, ch), mn = Math.min.apply(null, ch);
+        const sat = mx === 0 ? 0 : (mx - mn) / mx;
+        const score = Math.min(ratio, 10) + mid * 4 + sat * 3
+          - (lib.printNote(box) ? 8 : 0) - (lib.printNote(font) ? 4 : 0);
+        if (!best || score > best.score) best = { box, font, score };
+      }
+    }
+    return best;
+  }
+
+  buildCells(kind, c) {
+    const cols = kind === 'deck' ? DECK_COLS : MINI_COLS;
+    const rows = kind === 'deck' ? DECK_ROWS : MINI_ROWS;
+    const map = kind === 'deck' ? DECK_MAP : MINI_MAP;
+    const lib = this.state.lib;
+    const nameLines = [c.name1, c.name2].map((s) => (s || '').trim()).filter(Boolean);
+    const nameText = nameLines.join('\n') || 'NAME';
+    const longest = nameLines.reduce((a, l) => Math.max(a, l.length), 1);
+    const fit = Math.min(1, 10 / longest) * (c.sizeNudge || 1);
+    // 1 twip = 1/20 pt, so the net's width in points doubles as the cqw basis:
+    // every label can be expressed at its true Word point size.
+    const netPt = cols.reduce((a, b) => a + b, 0) / 20;
+    const cq = (pt) => (pt / netPt) * 100 + 'cqw';
+    const cells = [];
+    for (let r = 0; r < rows.length; r++) {
+      for (let col = 0; col < cols.length; col++) {
+        const spec = map[r + ',' + col] || {};
+        const style = {
+          position: 'relative',
+          overflow: 'hidden',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: spec.fill ? c.boxColor : 'transparent',
+          boxSizing: 'border-box'
+        };
+        const cell = { key: r + '-' + col, style, clipStyle: { display: 'none' } };
+        if (spec.mark) {
+          cell.text = spec.mark;
+          cell.textStyle = {
+            fontFamily: '"Times New Roman", Times, serif', fontSize: cq(12),
+            color: '#111111', lineHeight: 1
+          };
+        } else if (spec.pile) {
+          // Label rotates with the cell; the Wingdings arrows stay horizontal on the page.
+          cell.pileLabel = spec.pile;
+          cell.arrow = spec.arrow;
+          cell.pileStyle = {
+            transform: 'rotate(' + spec.rot + 'deg)', whiteSpace: 'nowrap',
+            display: 'flex', alignItems: 'center', gap: cq(10),
+            fontFamily: '"Times New Roman", Times, serif', fontWeight: 700,
+            fontSize: cq(spec.pt || 20), color: '#111111', lineHeight: 1
+          };
+          cell.arrowStyle = { display: 'inline-block', transform: 'rotate(90deg)' };
+        } else if (spec.name) {
+          cell.text = nameText;
+          const base = kind === 'deck' ? 24 : r === 1 ? 20 : 16;
+          cell.textStyle = {
+            transform: 'rotate(' + ((spec.rot || 0) + (spec.upside ? 180 : 0)) + 'deg)',
+            whiteSpace: 'pre-line', textAlign: 'center', lineHeight: 1.05,
+            fontFamily: 'Arial, Helvetica, sans-serif', fontWeight: 700,
+            fontSize: cq(base * fit), color: c.fontColor, letterSpacing: '0.02em'
+          };
+        }
+        const img = spec.img ? c[spec.img] : null;
+        if (spec.img && img) {
+          const ext = EXTENTS[kind][r + ',' + col] || [cols[col] * 635, rows[r] * 635];
+          const panelW = ext[0], panelH = ext[1];
+          const crops = c.crops || {};
+          const crop = crops[kind === 'mini' ? 'mini' : spec.img === 'back' ? 'deckBack' : 'deckFront'] || crop0();
+          const sr = lib
+            ? lib.computeSrcRect(img.width, img.height, panelW, panelH, crop).frac
+            : { w: 1, h: 1, x: 0, y: 0 };
+          const posX = sr.w >= 0.999 ? 50 : (sr.x / (1 - sr.w)) * 100;
+          const posY = sr.h >= 0.999 ? 50 : (sr.y / (1 - sr.h)) * 100;
+          const wPct = (panelW / (cols[col] * 635)) * 100;
+          const hPct = (panelH / (rows[r] * 635)) * 100;
+          const feather = cq((SOFT_EDGE_EMU / 12700) * 1.6);
+          cell.clipStyle = {
+            position: 'absolute', top: (100 - hPct) / 2 + '%', left: (100 - wPct) / 2 + '%',
+            width: wPct + '%', height: hPct + '%', overflow: 'hidden',
+            backgroundImage: 'url(' + img.url + ')',
+            backgroundSize: 100 / sr.w + '% ' + 100 / sr.h + '%',
+            backgroundPosition: posX + '% ' + posY + '%',
+            backgroundRepeat: 'no-repeat',
+            boxShadow: 'inset 0 0 ' + feather + ' ' + feather + ' ' + c.boxColor
+          };
+        }
+        if (spec.overlay && lib) {
+          cell.overlay = true;
+          // The mini plate carries the name only.
+          cell.overlaySub = kind === 'deck' && (c.subtitle || '').trim() ? '& ' + c.subtitle.trim() : '';
+          const plate = c.plate || { tint: 'white', opacity: 0.75, offsetX: 0, offsetY: 0 };
+          const rgb = plate.tint === 'black' ? '0,0,0' : '255,255,255';
+          const g = lib.PLATE_GEOMS[kind];
+          const sh = lib.plateShift(plate, kind);
+          cell.overlayStyle = {
+            position: 'absolute',
+            left: ((g.panelW - g.w) / 2 / g.panelW) * 100 + '%',
+            top: ((g.baseY + sh.dy) / g.panelH) * 100 + '%',
+            width: (g.w / g.panelW) * 100 + '%',
+            height: (g.h / g.panelH) * 100 + '%',
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(' + rgb + ',' + plate.opacity + ')',
+            borderRadius: cq(g.radiusPt), textAlign: 'center'
+          };
+          const ink = plate.tint === 'black' ? '#FFFFFF' : '#000000';
+          const oneLine = nameLines.join(' ') || 'NAME';
+          cell.overlayName = oneLine;
+          const basePt = kind === 'mini' ? (plate.miniFontSize || 12) : (plate.fontSize || 18);
+          const pt = lib.platePt(basePt, oneLine.length, kind);
+          cell.overlayNameStyle = {
+            fontFamily: 'Arial, Helvetica, sans-serif', fontWeight: 700,
+            fontSize: cq(pt), color: ink, whiteSpace: 'nowrap', lineHeight: 1.05
+          };
+          cell.overlaySubStyle = {
+            fontFamily: 'Arial, Helvetica, sans-serif', fontWeight: 700,
+            fontSize: cq(Math.max(6, pt - 3)), color: ink
+          };
+        }
+        cells.push(cell);
+      }
+    }
+    return cells;
+  }
+
+  // Every fold/cut edge drawn once, in template twips, so dashes stay continuous.
+  buildLines(kind) {
+    const cols = kind === 'deck' ? DECK_COLS : MINI_COLS;
+    const rows = kind === 'deck' ? DECK_ROWS : MINI_ROWS;
+    const bord = kind === 'deck' ? DECK_BORDERS : MINI_BORDERS;
+    const xs = [0], ys = [0];
+    cols.forEach((w) => xs.push(xs[xs.length - 1] + w));
+    rows.forEach((h) => ys.push(ys[ys.length - 1] + h));
+    const pick = (a, b) => (a === 's' || b === 's' ? 's' : a === 'd' || b === 'd' ? 'd' : 'n');
+    const at = (r, c, i) => (bord[r] && bord[r][c] ? bord[r][c][i] : 'n');
+    const totalW = xs[xs.length - 1], totalH = ys[ys.length - 1];
+    const out = [];
+    const push = (kindOf, x1, y1, x2, y2) => {
+      if (kindOf === 'n') return;
+      const horiz = y1 === y2;
+      const edge = (kindOf === 's' ? '2px solid ' : '1px dashed ') + '#111111';
+      out.push({
+        key: x1 + ':' + y1 + ':' + x2 + ':' + y2,
+        style: {
+          position: 'absolute',
+          left: (x1 / totalW) * 100 + '%',
+          top: (y1 / totalH) * 100 + '%',
+          width: horiz ? ((x2 - x1) / totalW) * 100 + '%' : 0,
+          height: horiz ? 0 : ((y2 - y1) / totalH) * 100 + '%',
+          borderTop: horiz ? edge : 'none',
+          borderLeft: horiz ? 'none' : edge,
+          pointerEvents: 'none'
+        }
+      });
+    };
+    for (let r = 0; r < rows.length; r++) {
+      for (let c = 0; c < cols.length; c++) {
+        push(pick(at(r, c, 0), at(r - 1, c, 2)), xs[c], ys[r], xs[c + 1], ys[r]);
+        push(pick(at(r, c, 1), at(r, c - 1, 3)), xs[c], ys[r], xs[c], ys[r + 1]);
+        if (r === rows.length - 1) push(at(r, c, 2), xs[c], ys[r + 1], xs[c + 1], ys[r + 1]);
+        if (c === cols.length - 1) push(at(r, c, 3), xs[c + 1], ys[r], xs[c + 1], ys[r + 1]);
+      }
+    }
+    const seen = {};
+    return out.filter((l) => (seen[l.key] ? false : (seen[l.key] = true)));
+  }
+
+  viewBox(kind) {
+    const cols = kind === 'deck' ? DECK_COLS : MINI_COLS;
+    const rows = kind === 'deck' ? DECK_ROWS : MINI_ROWS;
+    return '0 0 ' + cols.reduce((a, b) => a + b, 0) + ' ' + rows.reduce((a, b) => a + b, 0);
+  }
+
+  gridStyle(kind) {
+    const cols = kind === 'deck' ? DECK_COLS : MINI_COLS;
+    const rows = kind === 'deck' ? DECK_ROWS : MINI_ROWS;
+    const totalW = cols.reduce((a, b) => a + b, 0);
+    const totalH = rows.reduce((a, b) => a + b, 0);
+    const actual = this.state.trueScale;
+    return {
+      display: 'grid',
+      gridTemplateColumns: actual ? cols.map((w) => w / 1440 + 'in').join(' ') : cols.map((w) => w + 'fr').join(' '),
+      gridTemplateRows: actual ? rows.map((h) => h / 1440 + 'in').join(' ') : rows.map((h) => h + 'fr').join(' '),
+      width: actual ? totalW / 1440 + 'in' : '100%',
+      flex: actual ? '0 0 auto' : '1 1 auto',
+      aspectRatio: actual ? 'auto' : totalW + ' / ' + totalH,
+      background: '#FFFFFF',
+      position: 'relative',
+      overflow: 'hidden',
+      containerType: 'inline-size'
+    };
+  }
+
+  async generate() {
+    const lib = this.state.lib;
+    if (!lib || this.state.busy) return;
+    const chars = this.state.chars;
+    const missing = chars.findIndex((c) => !c.front || !c.back || !(c.name1 || '').trim());
+    if (missing > -1) {
+      this.setState({ status: 'Character ' + (missing + 1) + ' still needs a name and both images.' });
+      return;
+    }
+    this.setState({ busy: true, status: 'Building documents…' });
+    try {
+      const payloadFor = (kind) => chars.map((c) => ({
+        nameLines: [c.name1, c.name2].map((s) => (s || '').trim()).filter(Boolean),
+        subtitle: c.subtitle,
+        boxColor: c.boxColor,
+        fontColor: c.fontColor,
+        sizeNudge: c.sizeNudge,
+        plate: c.plate,
+        front: {
+          blob: c.front.blob, width: c.front.width, height: c.front.height,
+          crop: kind === 'mini' ? c.crops.mini : c.crops.deckFront
+        },
+        back: { blob: c.back.blob, width: c.back.width, height: c.back.height, crop: c.crops.deckBack }
+      }));
+      const stamp = chars.map((c) => [c.name1, c.name2].filter(Boolean).join(' ')).join(' + ').slice(0, 60) || 'Boxes';
+      for (const kind of ['deck', 'mini']) {
+        const buf = await lib.loadTemplate(kind);
+        const blob = await lib.buildDoc(kind, buf, payloadFor(kind), window.JSZip, {
+          upright: this.props.uprightMethod ?? 'rotate'
+        });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = stamp + (kind === 'deck' ? ' Deck Boxes' : ' Mini Boxes') + '.docx';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      }
+      this.setState({ busy: false, status: 'Downloaded both documents.' });
+    } catch (e) {
+      this.setState({ busy: false, status: 'Failed: ' + e.message });
+    }
+  }
+
+  renderVals() {
+    const s = this.state;
+    const c = this.cur();
+    const lib = s.lib;
+    const cropKey = s.cropTarget || 'deckFront';
+    const crop = (c.crops && c.crops[cropKey]) || crop0();
+    const plate = c.plate || { tint: 'white', opacity: 0.75, offsetX: 0, offsetY: 0, fontSize: 18, miniFontSize: 12 };
+    const ratio = lib ? lib.contrast(c.boxColor, c.fontColor) : 0;
+    const ok = ratio >= (this.props.contrastTarget ?? 4.5);
+    const accent = this.props.accent ?? '#CC9900';
+    const maxChars = this.props.maxCharacters ?? 4;
+    const swatch = (hex, selected, onPick) => ({
+      hex,
+      pick: onPick,
+      style: {
+        width: '30px', height: '30px', borderRadius: '4px', cursor: 'pointer',
+        background: hex, border: selected ? '2px solid #F3F0EA' : '1px solid #2E353C', padding: 0
+      }
+    });
+    const palette = c.palette.length ? c.palette : ['#006666', '#CC9900', '#993300', '#385623', '#F2F2F2', '#000000'];
+
+    return {
+      tabs: s.chars.map((ch, i) => ({
+        label: (ch.name1 || 'Character ' + (i + 1)).slice(0, 16),
+        select: () => this.setState({ active: i }),
+        style: {
+          background: i === s.active ? accent : 'transparent',
+          color: i === s.active ? '#131518' : '#B7BDC5',
+          border: '1px solid ' + (i === s.active ? accent : '#3C434B'),
+          font: 'inherit', fontSize: '13px', fontWeight: 600, padding: '7px 12px',
+          borderRadius: '4px', cursor: 'pointer', letterSpacing: '0.04em'
+        }
+      })),
+      canAdd: s.chars.length < maxChars,
+      canRemove: s.chars.length > 1,
+      addCharacter: () => this.setState((st) => ({ chars: st.chars.concat([blank(st.chars.length)]), active: st.chars.length })),
+      removeCharacter: () => this.setState((st) => {
+        const chars = st.chars.filter((_, i) => i !== st.active);
+        return { chars, active: Math.max(0, st.active - 1) };
+      }),
+
+      name1: c.name1,
+      name2: c.name2,
+      subtitle: c.subtitle,
+      setName1: (e) => this.patch({ name1: e.target.value.toUpperCase() }),
+      setName2: (e) => this.patch({ name2: e.target.value.toUpperCase() }),
+      setSubtitle: (e) => this.patch({ subtitle: e.target.value }),
+
+      frontUrl: c.front && c.front.url,
+      backUrl: c.back && c.back.url,
+      noFront: !c.front,
+      noBack: !c.back,
+      frontDropStyle: {
+        position: 'relative', height: '132px', borderRadius: '4px', display: 'flex',
+        alignItems: 'center', justifyContent: 'center',
+        border: '1px dashed ' + (c.front ? '#3C434B' : '#4A525B'), background: '#0F1215',
+        backgroundImage: c.front ? 'url(' + c.front.url + ')' : 'none',
+        backgroundSize: 'cover', backgroundPosition: 'center'
+      },
+      backDropStyle: {
+        position: 'relative', height: '132px', borderRadius: '4px', display: 'flex',
+        alignItems: 'center', justifyContent: 'center',
+        border: '1px dashed ' + (c.back ? '#3C434B' : '#4A525B'), background: '#0F1215',
+        backgroundImage: c.back ? 'url(' + c.back.url + ')' : 'none',
+        backgroundSize: 'cover', backgroundPosition: 'center'
+      },
+      setFront: (e) => e.target.files[0] && this.readImage(e.target.files[0], 'front'),
+      setBack: (e) => e.target.files[0] && this.readImage(e.target.files[0], 'back'),
+
+      boxSwatches: palette.map((h) => swatch(h, h.toUpperCase() === c.boxColor.toUpperCase(), () => this.patch({ boxColor: h }))),
+      fontSwatches: palette.map((h) => swatch(h, h.toUpperCase() === c.fontColor.toUpperCase(), () => this.patch({ fontColor: h }))),
+      boxColor: c.boxColor,
+      fontColor: c.fontColor,
+      setBoxColor: (e) => this.patch({ boxColor: e.target.value.toUpperCase() }),
+      setFontColor: (e) => this.patch({ fontColor: e.target.value.toUpperCase() }),
+      contrastLabel: 'Contrast ' + ratio.toFixed(1) + ':1 — ' + (ok ? 'good for print' : 'below 4.5:1, text may read poorly'),
+      contrastStyle: {
+        fontSize: '12px', padding: '8px 10px', borderRadius: '4px',
+        background: ok ? 'rgba(80,140,90,0.15)' : 'rgba(190,120,40,0.18)',
+        color: ok ? '#8FC79B' : '#E0A94F'
+      },
+      printNote: lib ? (lib.printNote(c.boxColor) || lib.printNote(c.fontColor)) : '',
+
+      sizeNudge: c.sizeNudge,
+      nudgeLabel: Math.round(c.sizeNudge * 100) + '%',
+      setNudge: (e) => this.patch({ sizeNudge: Number(e.target.value) }),
+      cropTabs: [
+        ['deckFront', 'Deck front'], ['deckBack', 'Deck back'], ['mini', 'Mini']
+      ].map(([key, label]) => ({
+        label,
+        select: () => this.setState({ cropTarget: key }),
+        style: {
+          background: cropKey === key ? '#2A3037' : 'transparent',
+          color: cropKey === key ? '#F3F0EA' : '#8B929B',
+          border: '1px solid ' + (cropKey === key ? '#4A525B' : '#2E353C'),
+          font: 'inherit', fontSize: '12px', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer'
+        }
+      })),
+      cropZoom: crop.zoom,
+      zoomLabel: crop.zoom.toFixed(2) + '×',
+      setZoom: (e) => this.setCrop({ zoom: Number(e.target.value) }),
+      cropX: crop.offsetX,
+      cropY: crop.offsetY,
+      setCropX: (e) => this.setCrop({ offsetX: Number(e.target.value) }),
+      setCropY: (e) => this.setCrop({ offsetY: Number(e.target.value) }),
+      resetCrop: () => this.setCrop({ zoom: 1, offsetX: 0, offsetY: 0 }),
+
+      plateTints: [['white', 'White'], ['black', 'Black']].map(([v, label]) => ({
+        label,
+        select: () => this.setPlate({ tint: v }),
+        style: {
+          background: plate.tint === v ? '#2A3037' : 'transparent',
+          color: plate.tint === v ? '#F3F0EA' : '#8B929B',
+          border: '1px solid ' + (plate.tint === v ? '#4A525B' : '#2E353C'),
+          font: 'inherit', fontSize: '12px', padding: '5px 12px', borderRadius: '4px', cursor: 'pointer'
+        }
+      })),
+      plateOpacity: plate.opacity,
+      plateOpacityLabel: Math.round(plate.opacity * 100) + '%',
+      setPlateOpacity: (e) => this.setPlate({ opacity: Number(e.target.value) }),
+      plateX: plate.offsetX,
+      plateY: plate.offsetY,
+      setPlateX: (e) => this.setPlate({ offsetX: Number(e.target.value) }),
+      setPlateY: (e) => this.setPlate({ offsetY: Number(e.target.value) }),
+      plateFontSize: plate.fontSize || 18,
+      plateFontLabel: (plate.fontSize || 18) + ' pt',
+      setPlateFontSize: (e) => this.setPlate({ fontSize: Number(e.target.value) }),
+      plateMiniFontSize: plate.miniFontSize || 12,
+      plateMiniFontLabel: (plate.miniFontSize || 12) + ' pt',
+      setPlateMiniFontSize: (e) => this.setPlate({ miniFontSize: Number(e.target.value) }),
+      resetPlate: () => this.setPlate({ tint: 'white', opacity: 0.75, offsetX: 0, offsetY: 0, fontSize: 18, miniFontSize: 12 }),
+
+      deckLines: this.buildLines('deck'),
+      miniLines: this.buildLines('mini'),
+      deckViewBox: this.viewBox('deck'),
+      miniViewBox: this.viewBox('mini'),
+      svgStyle: { position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' },
+
+      deckCells: this.buildCells('deck', c),
+      miniCells: this.buildCells('mini', c),
+      deckGridStyle: this.gridStyle('deck'),
+      miniGridStyle: this.gridStyle('mini'),
+      deckDims: this.dims('deck'),
+      miniDims: this.dims('mini'),
+      scaleLabel: s.trueScale ? 'Actual size' : 'Fit width',
+      toggleScale: () => this.setState((st) => ({ trueScale: !st.trueScale })),
+      scaleStyle: {
+        background: 'none', border: '1px solid #3C434B',
+        color: s.trueScale ? '#F3F0EA' : '#8B929B',
+        font: 'inherit', fontSize: '11px', letterSpacing: '0.08em', textTransform: 'uppercase',
+        padding: '4px 9px', borderRadius: '4px', cursor: 'pointer'
+      },
+      scrollStyle: { overflowX: 'auto', display: 'flex' },
+
+      generate: () => this.generate(),
+      generateLabel: s.busy ? 'Building…' : 'Generate both Word documents',
+      generateStyle: {
+        background: s.busy ? '#3C434B' : accent, color: s.busy ? '#8B929B' : '#131518',
+        border: 'none', borderRadius: '4px', font: 'inherit', fontWeight: 600,
+        fontSize: '15px', letterSpacing: '0.04em', padding: '14px 18px',
+        cursor: s.busy ? 'default' : 'pointer'
+      },
+      status: s.status
+    };
+  }
+}
+
+</script>
+</body>
+</html>
