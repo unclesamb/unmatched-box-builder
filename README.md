@@ -2,13 +2,14 @@
 
 A browser tool that generates print-ready Word documents for custom Unmatched deck
 boxes and mini boxes. Drop in a card scan and a card back, set the name and colours,
-and it produces a .docx using the Tom Teaches templates for Unmatched boxes.
+and it produces a .docx whose cut/fold geometry is byte-identical to the original
+Battle of Legends vol. 3 templates.
 
 ## Files
 
 | File | Purpose |
 | --- | --- |
-| `Unmatched Box Builder.dc.html` | The tool: character list, art drop zones, colour and nameplate controls, and a live preview of both nets. |
+| `index.html` | The tool: character list, art drop zones, colour and nameplate controls, and a live preview of both nets. |
 | `boxdoc.js` | Document generation — clones a character's table out of a template and swaps colours, names, nameplate and images. Also palette sampling and contrast/print checks. |
 | `templates/deck-template.docx` | Deck box net. Never edited; cloned from. |
 | `templates/mini-template.docx` | Mini box net. Never edited; cloned from. |
@@ -17,7 +18,7 @@ and it produces a .docx using the Tom Teaches templates for Unmatched boxes.
 
 ## Running it
 
-Open `Unmatched Box Builder.dc.html` in a browser. No build step, no dependencies to
+Open `index.html` in a browser. No build step, no dependencies to
 install — JSZip loads from a CDN.
 
 ## How generation works
@@ -40,5 +41,5 @@ Two adjustments are made on top of the template:
 
 ## Printing
 
-Letter, landscape, at 100% — no "fit to page". Solid lines are folds, dashed lines are
-cuts, and an X marks a piece to discard.
+Letter, landscape, at 100% — no "fit to page". Dotted lines are cuts, solid lines are
+folds, and an X marks a piece to discard.

@@ -1,7 +1,7 @@
 # Unmatched deck/mini box builder — state
 
 ## Files
-- `Unmatched Box Builder.dc.html` — the tool (UI + preview). Logic class holds the net maps.
+- `index.html` — the tool (UI + preview). Logic class holds the net maps. Named `index.html` (not `.dc.html`) so GitHub Pages serves it as the site root; edit it with plain string edits rather than the component tools.
 - `boxdoc.js` — .docx generation, palette sampling, contrast/print checks.
 - `templates/deck-template.docx`, `templates/mini-template.docx` — copies of the BoL3 originals. Never edited; the generator clones one character's `<w:tbl>` block out of them, so all cell geometry is byte-identical to the source.
 
@@ -17,7 +17,7 @@ Order inside the loop matters: fill/colour → plate anchor extracted to a token
 - Upside-down panels: deck r2c5 + r4c3, mini r0c6 + r2c2. Template used Flip Vertical (mirrors glyphs); generator converts to true 180° rotation. `uprightMethod` prop switches back to `flip`. Rotating about the box centre left those name boxes off-centre, so `centerRotatedNames` rewrites their `positionH` to `<wp:align>center</wp:align>`.
 - Mini box reuses the deck FRONT image, with its own crop; mini colours always match the deck.
 - Outer left/right table edges are blanked (`clearOuterEdges`) — they printed as stray full-height rules.
-- Preview is white paper, black lines: solid = cut, dashed = fold, no line = continuous, X = discard piece. Border codes come from the template with TableGrid inheritance applied (a cell with no `tcBorders` override inherits SOLID).
+- Preview is white paper, black lines: dashed = cut, solid = fold, no line = continuous, X = discard piece. Border codes come from the template with TableGrid inheritance applied (a cell with no `tcBorders` override inherits SOLID).
 - Nameplate runs on BOTH nets (the mini template has the same roundRect on its front panel, with no sidekick run). Geometry per kind in `PLATE_GEOMS` (`cap` = characters that fit at base size, `minPt` = shrink floor, `radiusPt`). Two sliders: deck text size (10-28, default 18) and mini text size (6-20, default 12). No x slider — the plate is always centred on the cell via `positionH` align; only y moves, as a fraction of real slack.
 - Deck bottom row is grown from 432 to 767 twips (432 + the 335 twip top page margin) so the bottom flap matches the top flap's depth, with a dashed fold across its outer edge. Bottom page margin dropped to 360 so it can't tip onto page 2. No extra row is added.
 - `clearOuterEdges` is deck-only; the mini net keeps its solid left/right side cuts.
