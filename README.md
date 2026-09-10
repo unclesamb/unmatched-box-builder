@@ -2,8 +2,7 @@
 
 A browser tool that generates print-ready Word documents for custom Unmatched deck
 boxes and mini boxes. Drop in a card scan and a card back, set the name and colours,
-and it produces a .docx whose cut/fold geometry is byte-identical to the original
-Battle of Legends vol. 3 templates.
+and it produces a .docx using the Tom Teaches templates for Unmatched boxes.
 
 ## Files
 
