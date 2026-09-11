@@ -21,6 +21,22 @@ const TPL = {
     faction: null,
     blockIndex: 1,
     images: { rId5: 'front' }
+  },
+  // The extra-large mini net (Ancient Leshen, page 3 of the Witcher file). It is not a
+  // scaled-up mini: the spine has no zig-zag, just two small tabs taped inside, and both
+  // art panels AND the front nameplate are turned 90° (rot 16200000) so the net fits one
+  // page. The template's colours are theme-linked, so the block needs normalising first.
+  miniLarge: {
+    url: 'templates/mini-large-template.docx',
+    name: 'ANCIENT LESHEN',
+    fill: '385623',
+    color: 'D9D9D9',
+    faction: null,
+    blockIndex: 2,
+    normalize: true,
+    // Printed under the net, in place of the template's own note.
+    note: '*** To fit the extra-large mini and fit that template on a single page, you’ll notice a slightly different design here. Rather than the spine of the box going up, then down, then up again (with the tabs within those folds) this box will simply have two small tabs that need to be taped inside of the spine.',
+    images: { rId7: 'front' }
   }
 };
 
@@ -79,6 +95,29 @@ function pinPileFont(block) {
     if (run.indexOf('<w:rPr>') > -1) return run.replace('<w:rPr>', '<w:rPr>' + font);
     return run.replace(/(<w:r\b[^>]*>)/, '$1<w:rPr>' + font + '</w:rPr>');
   });
+}
+
+// The large template is theme-linked: w:color carries themeColor/themeShade and w:shd a
+// themeFill, both of which Word applies OVER the literal val we swap in. Strip them.
+function normalizeTheme(block) {
+  return block
+    .replace(/<w:color ([^>]*?)\s*\/>/g, (m, attrs) =>
+      '<w:color ' + attrs.replace(/\s*w:theme(?:Color|Shade|Tint)="[^"]*"/g, '') + '/>')
+    .replace(/<w:shd ([^>]*?)\s*\/>/g, (m, attrs) =>
+      '<w:shd ' + attrs.replace(/\s*w:themeFill(?:Shade|Tint)?="[^"]*"/g, '') + '/>');
+}
+
+// In the large template some panels carry the name as two words in two separate
+// paragraphs ("ANCIENT" / "LESHEN"). replaceName matches one <w:t>, so merge them.
+function mergeSplitName(block, tplName) {
+  const cut = tplName.indexOf(' ');
+  if (cut < 0) return block;
+  const head = tplName.slice(0, cut + 1), tail = tplName.slice(cut + 1);
+  const re = new RegExp(
+    '<w:t xml:space="preserve">' + head + '</w:t></w:r></w:p><w:p\\b[\\s\\S]*?<w:t>' + tail + '</w:t></w:r>',
+    'g'
+  );
+  return block.replace(re, '<w:t>' + tplName + '</w:t></w:r>');
 }
 
 function replaceName(block, tplName, lines) {
@@ -168,9 +207,29 @@ export const PLATE_GEOMS = {
     w: 1078230, h: 428625,
     baseX: 231775, baseY: 1727835,
     cap: 7, radiusPt: 8, minPt: 6
+  },
+  // Turned 90° in the template, so w/h/baseX/baseY here are the VISUAL (post-rotation)
+  // footprint: a tall strip near the panel's left edge — the same band the deck box has
+  // along its bottom, seen with the panel rotated. Centring and travel swap axes.
+  miniLarge: {
+    panelW: 2286000, panelH: 3017520,
+    rotated: true,
+    tplCx: 1573530, tplCy: 410845,
+    w: 410845, h: 1573530,
+    baseX: 107633, baseY: 782002,
+    cap: 10, radiusPt: 8, minPt: 6
   }
 };
 Object.values(PLATE_GEOMS).forEach((g) => {
+  if (g.rotated) {
+    // Centred along the panel's long axis; the one slider travels across it instead.
+    g.tplY = g.baseY;
+    g.baseY = Math.round((g.panelH - g.h) / 2);
+    g.centerDy = g.baseY - g.tplY;
+    g.slackRight = g.panelW - g.w - g.baseX;
+    g.slackLeft = g.baseX;
+    return;
+  }
   // The plate always sits horizontally centred on the panel; only the template's own
   // x position differs, so keep it for computing the shape's real travel.
   g.tplX = g.baseX;
@@ -189,6 +248,13 @@ export function plateShift(plate, kind) {
   const g = PLATE_GEOMS[kind] || PLATE_GEOMS.deck;
   const ox = Math.max(-1, Math.min(1, (plate && plate.offsetX) || 0));
   const oy = Math.max(-1, Math.min(1, (plate && plate.offsetY) || 0));
+  if (g.rotated) {
+    // The plate is rotated, so the "move" slider runs along page x; page y is centring.
+    return {
+      dx: Math.round(oy >= 0 ? oy * g.slackRight : oy * g.slackLeft),
+      dy: g.centerDy
+    };
+  }
   return {
     dx: g.centerDx + Math.round(ox >= 0 ? ox * g.slackRight : ox * g.slackLeft),
     dy: Math.round(oy >= 0 ? oy * g.slackDown : oy * g.slackUp)
@@ -208,13 +274,15 @@ function applyPlate(block, plate, kind) {
   if (!plate) return block;
   const hex = (plate.tint === 'black' ? '000000' : 'FFFFFF');
   const alpha = Math.round(Math.max(0, Math.min(1, plate.opacity)) * 100000);
-  const dy = plateShift(plate, kind).dy;
+  const sh = plateShift(plate, kind);
+  const dx = sh.dx, dy = sh.dy;
+  const rotated = !!(PLATE_GEOMS[kind] && PLATE_GEOMS[kind].rotated);
   // Scope every change to the one anchored shape that actually carries a fill.
   return block.replace(/<wp:anchor[\s\S]*?<\/wp:anchor>/g, (anchor) => {
     if (anchor.indexOf('<a:solidFill>') === -1) return anchor;
     let a = anchor
       .replace(
-        /<a:solidFill><a:schemeClr val="bg1">\s*<a:alpha val="\d+"\/>\s*<\/a:schemeClr><\/a:solidFill>/g,
+        /<a:solidFill><a:schemeClr val="[^"]*">[\s\S]*?<\/a:schemeClr><\/a:solidFill>/g,
         `<a:solidFill><a:srgbClr val="${hex}"><a:alpha val="${alpha}"/></a:srgbClr></a:solidFill>`
       )
       .replace(
@@ -223,16 +291,24 @@ function applyPlate(block, plate, kind) {
       )
       .replace(/<v:fill[^>]*\/>/g,
         `<v:fill color="#${hex.toLowerCase()}" opacity="${Math.round((alpha / 100000) * 65536)}f"/>`);
-    // Centred on the cell rather than nudged from the template's own x offset.
-    a = a.replace(/<wp:positionH([^>]*)>[\s\S]*?<\/wp:positionH>/,
-      '<wp:positionH relativeFrom="column"><wp:align>center</wp:align></wp:positionH>');
+    // Centred on the cell rather than nudged from the template's own x offset — except on
+    // the rotated plate, where x IS the travel axis and y does the centring.
+    if (rotated) {
+      if (dx) a = a.replace(/(<wp:positionH[^>]*><wp:posOffset>)(-?\d+)(<\/wp:posOffset>)/,
+        (m, p, v, s) => p + (Number(v) + dx) + s);
+    } else {
+      a = a.replace(/<wp:positionH([^>]*)>[\s\S]*?<\/wp:positionH>/,
+        '<wp:positionH relativeFrom="column"><wp:align>center</wp:align></wp:positionH>');
+    }
     if (dy) a = a.replace(/(<wp:positionV[^>]*><wp:posOffset>)(-?\d+)(<\/wp:posOffset>)/,
       (m, p, v, s) => p + (Number(v) + dy) + s);
     const ink = plate.tint === 'black' ? 'FFFFFF' : '000000';
     // Name lines collapse to a single line on the plate.
     a = a.replace(/<\/w:t><w:br\/><w:t xml:space="preserve">/g, ' ');
     const nameText = (plate.nameText || '').trim();
-    const basePt = kind === 'mini' ? (plate.miniFontSize || 12) : (plate.fontSize || 18);
+    const basePt = kind === 'deck'
+      ? (plate.fontSize || 18)
+      : kind === 'miniLarge' ? (plate.largeFontSize || 16) : (plate.miniFontSize || 12);
     const namePt = platePt(basePt, Math.max(1, nameText.length), kind);
     const nameHalf = Math.round(namePt * 2);
     const subHalf = Math.round(Math.max(6, namePt - 3) * 2);
@@ -348,6 +424,13 @@ export const NETS = {
     // Pinned by floatTable() below: left margin + the template's -275 indent, page top margin.
     originX: 445,
     originY: 720
+  },
+  // Seven columns, not nine: the large net drops the zig-zag spine for two taped tabs.
+  miniLarge: {
+    cols: [597, 1583, 3600, 1583, 3600, 1583, 598],
+    rows: [1584, 4752, 1584],
+    originX: 445,
+    originY: 720
   }
 };
 
@@ -369,6 +452,16 @@ export const TAPERS = {
     [1, 1, 0, 'y', 1], [8, 1, 9, 'y', 1], [3, 1, 5, 'y', -1],
     [1, 2, 0, 'y', -1], [8, 2, 9, 'y', -1], [3, 2, 5, 'y', 1],
     [2, 3, 0, 'y', -1], [7, 3, 9, 'y', -1]
+  ],
+  // Same corners as the mini, mapped onto the seven-column grid (its cols 3-5 collapse
+  // into the single spine column 3).
+  miniLarge: [
+    [2, 0, 0, 'y', 1], [5, 0, 7, 'y', 1],
+    // The two spine tabs are trimmed at their OUTER corners, not at the folds.
+    [3, 0, 4, 'y', 1], [3, 3, 4, 'y', -1],
+    [1, 1, 0, 'y', 1], [6, 1, 7, 'y', 1],
+    [1, 2, 0, 'y', -1], [6, 2, 7, 'y', -1],
+    [2, 3, 0, 'y', -1], [5, 3, 7, 'y', -1]
   ]
 };
 
@@ -545,6 +638,40 @@ function applyTapers(block, kind, inches, counter, nudge) {
   return holder + out;
 }
 
+// The note used to sit in normal flow, but flow text wraps around the floated net (it
+// started in the narrow gap beside the table) and its spacing pushed the anchor
+// paragraph onto the next page, dragging the net and its guides with it. So the note is
+// a page-anchored text box under the net, exactly like the taper guides.
+function noteShape(text, net, id) {
+  const netW = net.cols.reduce((a, b) => a + b, 0);
+  const netH = net.rows.reduce((a, b) => a + b, 0);
+  const x = net.originX * EMU;
+  const y = (net.originY + netH + 240) * EMU;
+  const cx = netW * EMU;
+  const cy = 1200 * EMU;
+  const rpr = '<w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr>';
+  return '<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="1" w:lineRule="exact"/>' +
+    '<w:rPr><w:sz w:val="2"/></w:rPr></w:pPr>' +
+    '<w:r><w:drawing><wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0"' +
+    ' relativeHeight="251910000" behindDoc="0" locked="0" layoutInCell="0" allowOverlap="1">' +
+    '<wp:simplePos x="0" y="0"/>' +
+    `<wp:positionH relativeFrom="page"><wp:posOffset>${x}</wp:posOffset></wp:positionH>` +
+    `<wp:positionV relativeFrom="page"><wp:posOffset>${y}</wp:posOffset></wp:positionV>` +
+    `<wp:extent cx="${cx}" cy="${cy}"/>` +
+    '<wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapNone/>' +
+    `<wp:docPr id="${id}" name="Net note ${id}"/><wp:cNvGraphicFramePr/>` +
+    '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">' +
+    '<a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">' +
+    '<wps:wsp><wps:cNvSpPr txBox="1"/><wps:spPr><a:xfrm><a:off x="0" y="0"/>' +
+    `<a:ext cx="${cx}" cy="${cy}"/></a:xfrm>` +
+    '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></wps:spPr>' +
+    '<wps:txbx><w:txbxContent><w:p><w:pPr><w:spacing w:before="0" w:after="0"/>' + rpr + '</w:pPr>' +
+    '<w:r>' + rpr + '<w:t xml:space="preserve">' + esc(text) + '</w:t></w:r></w:p></w:txbxContent></wps:txbx>' +
+    '<wps:bodyPr rot="0" vert="horz" wrap="square" lIns="0" tIns="0" rIns="0" bIns="0"' +
+    ' anchor="t" anchorCtr="0"/></wps:wsp>' +
+    '</a:graphicData></a:graphic></wp:anchor></w:drawing></w:r></w:p>';
+}
+
 function mimeExt(type) {
   if (type === 'image/png') return 'png';
   if (type === 'image/gif') return 'gif';
@@ -561,12 +688,14 @@ export async function buildDoc(kind, templateBuf, characters, JSZip, opts) {
   const zip = await JSZip.loadAsync(templateBuf);
   const xml = await zip.file('word/document.xml').async('string');
   const tables = findTables(xml);
-  if (tables.length < 4) throw new Error('Unexpected template structure');
+  if (tables.length <= tpl.blockIndex || tables.length < 2) throw new Error('Unexpected template structure');
 
   const source = tables[tpl.blockIndex].text;
   const pre = xml.slice(0, tables[0].start);
   const sep = xml.slice(tables[0].end, tables[1].start);
-  const post = xml.slice(tables[tables.length - 1].end);
+  let post = xml.slice(tables[tables.length - 1].end);
+  // The template's own note is re-emitted per net by notePara(), so drop the original.
+  if (tpl.note) post = post.replace(/<w:p\b[^>]*>[\s\S]*?<\/w:p>/g, (p) => (/<w:t[ >]/.test(p) ? '' : p));
 
   Object.keys(zip.files).forEach((f) => {
     if (f.startsWith('word/media/')) zip.remove(f);
@@ -603,6 +732,9 @@ export async function buildDoc(kind, templateBuf, characters, JSZip, opts) {
     const factor = fit * (c.sizeNudge || 1);
 
     let b = uniquify(source, counter);
+    if (tpl.normalize) {
+      b = mergeSplitName(normalizeTheme(b), tpl.name);
+    }
     b = b.replace(new RegExp(`w:fill="${tpl.fill}"`, 'g'), `w:fill="${c.boxColor.replace('#', '').toUpperCase()}"`);
     b = b.replace(
       new RegExp(`w:color w:val="${tpl.color}"`, 'g'),
@@ -637,6 +769,7 @@ export async function buildDoc(kind, templateBuf, characters, JSZip, opts) {
     if (kind === 'deck') b = clearOuterEdges(b);
     b = applyImages(b, tpl.images, specs);
     b = applyTapers(b, kind, c.taper, counter, c.guideNudge);
+    if (tpl.note && NETS[kind]) b = noteShape(tpl.note, NETS[kind], counter.n++) + b;
     blocks.push(b);
   }
 

@@ -12,6 +12,7 @@ and colors, and it produces a .docx using the Tom Teaches templates.
 | `boxdoc.js` | Document generation — clones a character's table out of a template and swaps colours, names, nameplate and images. Also palette sampling and contrast/print checks. |
 | `templates/deck-template.docx` | Deck box net. Never edited; cloned from. |
 | `templates/mini-template.docx` | Mini box net. Never edited; cloned from. |
+| `templates/mini-large-template.docx` | Extra-large mini box net. Never edited; cloned from. |
 | `support.js` | Runtime for the HTML file. |
 | `CLAUDE.md` | Working notes: how generation works and every decision that has been settled. |
 
@@ -35,6 +36,17 @@ Two adjustments are made on top of the template:
   the page margin above it), with a dashed fold across its outer edge.
 - Upside-down panels use a true 180° rotation instead of the template's Flip Vertical,
   which mirrored the glyphs, and those name boxes are re-centred in their cells.
+
+## Mini box sizes
+
+Some minis don't fit the standard box, so each character is set to **Standard** or
+**Large**. The large net is a different template, not a scaled one: seven columns
+instead of nine, a spine with two taped tabs rather than a zig-zag fold, a 2.50 × 3.30 in
+card panel, and both the art and the nameplate turned 90° so the whole thing fits on one
+page. A note explaining the spine is printed under each large net.
+
+Because the two mini nets come from different templates, a mixed roster downloads three
+documents: deck boxes, standard mini boxes, and large mini boxes.
 
 `CLAUDE.md` has the full list of settled decisions and the verification recipe.
 

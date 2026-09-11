@@ -4,6 +4,19 @@
 - `index.html` — the tool (UI + preview). Logic class holds the net maps. Named `index.html` (not `.dc.html`) so GitHub Pages serves it as the site root; edit it with plain string edits rather than the component tools.
 - `boxdoc.js` — .docx generation, palette sampling, contrast/print checks.
 - `templates/deck-template.docx`, `templates/mini-template.docx` — copies of the BoL3 originals. Never edited; the generator clones one character's `<w:tbl>` block out of them, so all cell geometry is byte-identical to the source.
+- `templates/mini-large-template.docx` — copy of the user's Witcher file, used for the EXTRA-LARGE mini net only (its table index 2, ANCIENT LESHEN). Also never edited.
+
+## The large mini box
+Some minis don't fit the standard mini box, so each character carries `miniSize: 'standard' | 'large'` (toggle in the character card). Deck boxes are unaffected. Generation writes one document per template, so a mixed roster downloads three files: `… Deck Boxes`, `… Mini Boxes` (standard characters), `… Large Mini Boxes` (large ones).
+
+Kind `miniLarge` differs from `mini` in ways that are all template-derived, not scaled:
+- Seven columns, not nine: `[597, 1583, 3600, 1583, 3600, 1583, 598] × [1584, 4752, 1584]`. Per the note on page 3 of the source file, the spine has no zig-zag — just two small tabs taped inside it — so the whole net fits one page at twice the volume.
+- Both card panels place the art ROTATED 90° (`rot="16200000"`), so the crop is taken from the unrotated landscape frame (`EXTENTS.miniLarge`) and the art reads sideways on the panel. The preview mirrors that with `rotate(-90deg)` on the art layer (`rotImg` in `MINI_LARGE_MAP`).
+- The nameplate is rotated with it: a tall strip near the panel's left edge. `PLATE_GEOMS.miniLarge` is therefore stated as the VISUAL (post-rotation) footprint with `rotated: true`; centring and travel swap axes, so `plateShift` returns `dy = centerDy` (fixed centring) and puts the slider's travel in `dx`. `applyPlate` keeps the template's `positionH` and nudges it rather than forcing `<wp:align>center</wp:align>`. Own text-size slider, default 16pt, `plate.largeFontSize`.
+- Upside-down panels are r0c4 + r2c2 (vs r0c6 + r2c2 on the mini); same flip→180° conversion.
+- The template is theme-linked, unlike the BoL3 files: `normalizeTheme` strips `w:themeColor`/`themeShade`/`themeFill*` (Word applies them OVER the literal value we swap in) and `mergeSplitName` merges panels whose name sits as two words in two paragraphs. Both run behind `TPL.miniLarge.normalize`. Its template name is 14 chars, so panel auto-shrink is relative to that (`TPL_LEN`).
+- `TPL.miniLarge.note` prints the DIY note under each large net. It is a page-anchored text box (`noteShape`, same mechanism as the taper guides), NOT flow text: in flow it wrapped into the narrow gap beside the floated table and its spacing pushed the anchor paragraph — and the net with it — onto the next page. The template's own note paragraphs are stripped from `post`.
+- Tapers are the mini's ten corners remapped onto the seven-column grid (mini cols 3-5 collapse into large col 3). Same `originX` 445 / `originY` 720.
 
 ## How generation works
 `buildDoc(kind, templateBuf, characters, JSZip, {upright})` clones table index 1 (BLACKBEARD) per character and swaps: box fill `006666`, font colour `CC9900`, name text (template name `BLACKBEARD`), sidekick line (`Sea Dogs`; blank removes the paragraph), embedded images with per-placement `srcRect` crops.

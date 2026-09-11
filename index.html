@@ -51,6 +51,15 @@
           <input value="{{ subtitle }}" onChange="{{ setSubtitle }}" placeholder="Sea Dogs" style="background:#0F1215;border:1px solid #2E353C;border-radius:4px;color:#F3F0EA;font:inherit;font-size:14px;padding:9px 10px"/>
         </label>
 
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <span style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#8B929B">Mini box size</span>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <sc-for list="{{ miniSizes }}" as="sz" hint-placeholder-count="2">
+              <button onClick="{{ sz.select }}" style="{{ sz.style }}">{{ sz.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
           <label style="display:flex;flex-direction:column;gap:8px;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#8B929B">Character art (front)
             <div style="{{ frontDropStyle }}">
@@ -150,6 +159,9 @@
         <label style="display:flex;flex-direction:column;gap:6px;font-size:12px;color:#8B929B">Mini box text size — {{ plateMiniFontLabel }}
           <input type="range" min="6" max="20" step="1" value="{{ plateMiniFontSize }}" onChange="{{ setPlateMiniFontSize }}" style="width:100%"/>
         </label>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:12px;color:#8B929B">Large mini box text size — {{ plateLargeFontLabel }}
+          <input type="range" min="8" max="24" step="1" value="{{ plateLargeFontSize }}" onChange="{{ setPlateLargeFontSize }}" style="width:100%"/>
+        </label>
         <label style="display:flex;flex-direction:column;gap:6px;font-size:12px;color:#8B929B">Opacity — {{ plateOpacityLabel }}
           <input type="range" min="0" max="1" step="0.05" value="{{ plateOpacity }}" onChange="{{ setPlateOpacity }}" style="width:100%"/>
         </label>
@@ -176,7 +188,7 @@
         <div style="{{ deckGridStyle }}">
           <sc-for list="{{ deckCells }}" as="cell" hint-placeholder-count="63">
             <div style="{{ cell.style }}">
-              <div style="{{ cell.clipStyle }}"></div>
+              <div style="{{ cell.clipStyle }}"><div style="{{ cell.artStyle }}"></div></div>
               <sc-if value="{{ cell.text }}"><span style="{{ cell.textStyle }}">{{ cell.text }}</span></sc-if>
               <sc-if value="{{ cell.pileLabel }}">
                 <span style="{{ cell.pileStyle }}">
@@ -211,12 +223,12 @@
         </div>
       </div>
       <div>
-        <div style="font-family:Oswald,sans-serif;font-size:13px;letter-spacing:0.14em;text-transform:uppercase;color:#8B929B;margin-bottom:8px">Mini box net — {{ miniDims }}</div>
+        <div style="font-family:Oswald,sans-serif;font-size:13px;letter-spacing:0.14em;text-transform:uppercase;color:#8B929B;margin-bottom:8px">{{ miniTitle }} — {{ miniDims }}</div>
         <div style="{{ scrollStyle }}">
         <div style="{{ miniGridStyle }}">
           <sc-for list="{{ miniCells }}" as="cell" hint-placeholder-count="27">
             <div style="{{ cell.style }}">
-              <div style="{{ cell.clipStyle }}"></div>
+              <div style="{{ cell.clipStyle }}"><div style="{{ cell.artStyle }}"></div></div>
               <sc-if value="{{ cell.text }}"><span style="{{ cell.textStyle }}">{{ cell.text }}</span></sc-if>
               <sc-if value="{{ cell.overlay }}">
                 <div style="{{ cell.overlayStyle }}">
@@ -247,6 +259,10 @@ const DECK_COLS = [864, 1152, 1152, 3744, 1152, 3816, 1152, 1152, 864];
 const DECK_ROWS = [432, 1152, 1152, 5184, 1152, 1152, 767];
 const MINI_COLS = [595, 1581, 2376, 1578, 1578, 1581, 2389, 1581, 596];
 const MINI_ROWS = [1584, 3600, 1584];
+// The extra-large net (page 3 of the Witcher file): seven columns instead of nine —
+// no zig-zag spine, just two small tabs taped inside it — and a taller card panel.
+const MINI_LARGE_COLS = [597, 1583, 3600, 1583, 3600, 1583, 598];
+const MINI_LARGE_ROWS = [1584, 4752, 1584];
 
 // Border codes lifted from the Word template, per cell: top,left,bottom,right.
 // s = single (cut line), d = dashed (fold line), n/. = no line (continuous card stock).
@@ -266,6 +282,11 @@ const MINI_BORDERS = [
   ['ssdn', 'snds', 'ssss', 'ssdn', 'sndd', 'sdds', 'ssss', 'ssdn', 'snds'],
   ['dsds', 'dsds', 'ssss', 'dsds', 'dsds', 'dsds', 'ssss', 'dsds', 'dsds'],
   ['dssn', 'dnss', 'ssss', 'dssn', 'dnsd', 'ddss', 'ssss', 'dssn', 'dnss']
+];
+const MINI_LARGE_BORDERS = [
+  ['ssdn', 'snds', 'ssss', 'ssdd', 'sdss', 'ssdn', 'snds'],
+  ['dsds', 'dsds', 'ssss', 'dsds', 'ssss', 'dsds', 'dsds'],
+  ['dssn', 'dnss', 'ssss', 'dssd', 'sdss', 'dssn', 'dnss']
 ];
 
 // r,c -> what the cell holds. fill = coloured panel.
@@ -296,10 +317,32 @@ const MINI_MAP = {
 };
 MINI_MAP['2,2'] = { fill: 1, name: 1, upside: 1 };
 
+// Large net. Both card panels carry the front art turned 90° (rotImg), and the
+// nameplate rides the right-hand panel turned with it.
+const MINI_LARGE_MAP = {
+  '0,0': { fill: 1 }, '0,1': { fill: 1 }, '0,2': { fill: 1, name: 1 }, '0,3': { fill: 1 },
+  '0,4': { fill: 1, name: 1, upside: 1 }, '0,5': { fill: 1 }, '0,6': { fill: 1 },
+  '1,1': { fill: 1, name: 1, rot: -90 }, '1,2': { fill: 1, img: 'front', rotImg: 1 },
+  '1,3': { fill: 1, name: 1, rot: 90 },
+  '1,4': { fill: 1, img: 'front', rotImg: 1, overlay: 1 },
+  '1,5': { fill: 1, name: 1, rot: -90 },
+  '2,0': { fill: 1 }, '2,1': { fill: 1 }, '2,2': { fill: 1, name: 1, upside: 1 },
+  '2,3': { fill: 1 }, '2,4': { fill: 1, name: 1 }, '2,5': { fill: 1 }, '2,6': { fill: 1 }
+};
+
+const COLS = { deck: DECK_COLS, mini: MINI_COLS, miniLarge: MINI_LARGE_COLS };
+const ROWS = { deck: DECK_ROWS, mini: MINI_ROWS, miniLarge: MINI_LARGE_ROWS };
+const BORDERS = { deck: DECK_BORDERS, mini: MINI_BORDERS, miniLarge: MINI_LARGE_BORDERS };
+const MAPS = { deck: DECK_MAP, mini: MINI_MAP, miniLarge: MINI_LARGE_MAP };
+// Name length in each template, which the panel auto-shrink is relative to.
+const TPL_LEN = { deck: 10, mini: 10, miniLarge: 14 };
+
 // Image extents as placed in the Word template (EMU); 1 twip = 635 EMU.
 const EXTENTS = {
   deck: { '3,3': [2315719, 3225972], '3,5': [2283285, 3283450] },
-  mini: { '1,2': [1431784, 2281747], '1,6': [1431784, 2281747] }
+  mini: { '1,2': [1431784, 2281747], '1,6': [1431784, 2281747] },
+  // Placed landscape and rotated 90°, so the art reads sideways on the panel.
+  miniLarge: { '1,2': [2890520, 2119911], '1,4': [2982595, 2133610] }
 };
 const SOFT_EDGE_EMU = 38100;
 
@@ -311,8 +354,9 @@ function blank(i) {
     name1: '', name2: '', subtitle: '',
     boxColor: '#006666', fontColor: '#CC9900',
     sizeNudge: 1, taper: 0.3, guideNudge: { x: 0, y: 0 },
-    crops: { deckFront: crop0(), deckBack: crop0(), mini: crop0() },
-    plate: { tint: 'white', opacity: 0.75, offsetX: 0, offsetY: 0, fontSize: 18, miniFontSize: 12 },
+    miniSize: 'standard',
+    crops: { deckFront: crop0(), deckBack: crop0(), mini: crop0(), miniLarge: crop0() },
+    plate: { tint: 'white', opacity: 0.75, offsetX: 0, offsetY: 0, fontSize: 18, miniFontSize: 12, largeFontSize: 16 },
     front: null, back: null, palette: []
   };
 }
@@ -321,8 +365,8 @@ class Component extends DCLogic {
   state = { chars: [blank(0)], active: 0, status: '', busy: false, lib: null, trueScale: false };
 
   dims(kind) {
-    const cols = kind === 'deck' ? DECK_COLS : MINI_COLS;
-    const rows = kind === 'deck' ? DECK_ROWS : MINI_ROWS;
+    const cols = COLS[kind];
+    const rows = ROWS[kind];
     const inch = (v) => (v / 1440).toFixed(2);
     const w = cols.reduce((a, b) => a + b, 0), h = rows.reduce((a, b) => a + b, 0);
     const panelC = kind === 'deck' ? 3 : 2, panelR = kind === 'deck' ? 3 : 1;
@@ -338,12 +382,20 @@ class Component extends DCLogic {
 
   cur() { return this.state.chars[this.state.active]; }
 
+  // Which mini net the active character uses.
+  miniKind() { return (this.cur().miniSize || 'standard') === 'large' ? 'miniLarge' : 'mini'; }
+
+  cropKey() {
+    const t = this.state.cropTarget || 'deckFront';
+    return t === 'mini' || t === 'miniLarge' ? this.miniKind() : t;
+  }
+
   setPlate(changes) {
     this.patch({ plate: Object.assign({}, this.cur().plate, changes) });
   }
 
   setCrop(changes) {
-    const key = this.state.cropTarget || 'deckFront';
+    const key = this.cropKey();
     const crops = Object.assign({}, this.cur().crops);
     crops[key] = Object.assign({}, crops[key], changes);
     this.patch({ crops });
@@ -435,14 +487,14 @@ class Component extends DCLogic {
   }
 
   buildCells(kind, c) {
-    const cols = kind === 'deck' ? DECK_COLS : MINI_COLS;
-    const rows = kind === 'deck' ? DECK_ROWS : MINI_ROWS;
-    const map = kind === 'deck' ? DECK_MAP : MINI_MAP;
+    const cols = COLS[kind];
+    const rows = ROWS[kind];
+    const map = MAPS[kind];
     const lib = this.state.lib;
     const nameLines = [c.name1, c.name2].map((s) => (s || '').trim()).filter(Boolean);
     const nameText = nameLines.join('\n') || 'NAME';
     const longest = nameLines.reduce((a, l) => Math.max(a, l.length), 1);
-    const fit = Math.min(1, 10 / longest) * (c.sizeNudge || 1);
+    const fit = Math.min(1, (TPL_LEN[kind] || 10) / longest) * (c.sizeNudge || 1);
     // 1 twip = 1/20 pt, so the net's width in points doubles as the cqw basis:
     // every label can be expressed at its true Word point size.
     const netPt = cols.reduce((a, b) => a + b, 0) / 20;
@@ -460,7 +512,7 @@ class Component extends DCLogic {
           background: spec.fill ? c.boxColor : 'transparent',
           boxSizing: 'border-box'
         };
-        const cell = { key: r + '-' + col, style, clipStyle: { display: 'none' } };
+        const cell = { key: r + '-' + col, style, clipStyle: { display: 'none' }, artStyle: { display: 'none' } };
         if (spec.mark) {
           cell.text = spec.mark;
           cell.textStyle = {
@@ -480,7 +532,7 @@ class Component extends DCLogic {
           cell.arrowStyle = { display: 'inline-block', transform: 'rotate(90deg)' };
         } else if (spec.name) {
           cell.text = nameText;
-          const base = kind === 'deck' ? 24 : r === 1 ? 20 : 16;
+          const base = kind === 'deck' || kind === 'miniLarge' ? 24 : r === 1 ? 20 : 16;
           cell.textStyle = {
             transform: 'rotate(' + ((spec.rot || 0) + (spec.upside ? 180 : 0)) + 'deg)',
             whiteSpace: 'pre-line', textAlign: 'center', lineHeight: 1.05,
@@ -493,24 +545,45 @@ class Component extends DCLogic {
           const ext = EXTENTS[kind][r + ',' + col] || [cols[col] * 635, rows[r] * 635];
           const panelW = ext[0], panelH = ext[1];
           const crops = c.crops || {};
-          const crop = crops[kind === 'mini' ? 'mini' : spec.img === 'back' ? 'deckBack' : 'deckFront'] || crop0();
+          const crop = crops[kind === 'deck' ? (spec.img === 'back' ? 'deckBack' : 'deckFront') : kind] || crop0();
           const sr = lib
             ? lib.computeSrcRect(img.width, img.height, panelW, panelH, crop).frac
             : { w: 1, h: 1, x: 0, y: 0 };
           const posX = sr.w >= 0.999 ? 50 : (sr.x / (1 - sr.w)) * 100;
           const posY = sr.h >= 0.999 ? 50 : (sr.y / (1 - sr.h)) * 100;
-          const wPct = (panelW / (cols[col] * 635)) * 100;
-          const hPct = (panelH / (rows[r] * 635)) * 100;
           const feather = cq((SOFT_EDGE_EMU / 12700) * 1.6);
-          cell.clipStyle = {
-            position: 'absolute', top: (100 - hPct) / 2 + '%', left: (100 - wPct) / 2 + '%',
-            width: wPct + '%', height: hPct + '%', overflow: 'hidden',
+          const art = {
+            position: 'absolute', overflow: 'hidden',
             backgroundImage: 'url(' + img.url + ')',
             backgroundSize: 100 / sr.w + '% ' + 100 / sr.h + '%',
             backgroundPosition: posX + '% ' + posY + '%',
-            backgroundRepeat: 'no-repeat',
-            boxShadow: 'inset 0 0 ' + feather + ' ' + feather + ' ' + c.boxColor
+            backgroundRepeat: 'no-repeat'
           };
+          const soft = 'inset 0 0 ' + feather + ' ' + feather + ' ' + c.boxColor;
+          if (spec.rotImg) {
+            // The template rotates the picture itself (rot 16200000), so the crop is taken
+            // from the unrotated landscape frame and the art lands sideways on the panel.
+            // The rotation lives on an inner layer: rotating the clip box as well left
+            // resampling seams along the panel edges.
+            cell.clipStyle = {
+              position: 'absolute', top: '50%', left: '50%',
+              width: cq(panelH / 12700), height: cq(panelW / 12700),
+              transform: 'translate(-50%, -50%)',
+              overflow: 'hidden', boxShadow: soft
+            };
+            cell.artStyle = Object.assign(art, {
+              top: '50%', left: '50%',
+              width: cq(panelW / 12700), height: cq(panelH / 12700),
+              transform: 'translate(-50%, -50%) rotate(-90deg)'
+            });
+          } else {
+            const wPct = (panelW / (cols[col] * 635)) * 100;
+            const hPct = (panelH / (rows[r] * 635)) * 100;
+            cell.clipStyle = Object.assign(art, {
+              top: (100 - hPct) / 2 + '%', left: (100 - wPct) / 2 + '%',
+              width: wPct + '%', height: hPct + '%', boxShadow: soft
+            });
+          }
         }
         if (spec.overlay && lib) {
           cell.overlay = true;
@@ -520,10 +593,13 @@ class Component extends DCLogic {
           const rgb = plate.tint === 'black' ? '0,0,0' : '255,255,255';
           const g = lib.PLATE_GEOMS[kind];
           const sh = lib.plateShift(plate, kind);
+          // On the large net the plate is turned 90°: it rides the panel's left edge and
+          // the one slider walks it across, so the axes swap.
+          const rotPlate = !!g.rotated;
           cell.overlayStyle = {
             position: 'absolute',
-            left: ((g.panelW - g.w) / 2 / g.panelW) * 100 + '%',
-            top: ((g.baseY + sh.dy) / g.panelH) * 100 + '%',
+            left: ((rotPlate ? g.baseX + sh.dx : (g.panelW - g.w) / 2) / g.panelW) * 100 + '%',
+            top: ((rotPlate ? g.baseY : g.baseY + sh.dy) / g.panelH) * 100 + '%',
             width: (g.w / g.panelW) * 100 + '%',
             height: (g.h / g.panelH) * 100 + '%',
             display: 'flex', flexDirection: 'column',
@@ -534,11 +610,14 @@ class Component extends DCLogic {
           const ink = plate.tint === 'black' ? '#FFFFFF' : '#000000';
           const oneLine = nameLines.join(' ') || 'NAME';
           cell.overlayName = oneLine;
-          const basePt = kind === 'mini' ? (plate.miniFontSize || 12) : (plate.fontSize || 18);
+          const basePt = kind === 'deck'
+            ? (plate.fontSize || 18)
+            : kind === 'miniLarge' ? (plate.largeFontSize || 16) : (plate.miniFontSize || 12);
           const pt = lib.platePt(basePt, oneLine.length, kind);
           cell.overlayNameStyle = {
             fontFamily: 'Arial, Helvetica, sans-serif', fontWeight: 700,
-            fontSize: cq(pt), color: ink, whiteSpace: 'nowrap', lineHeight: 1.05
+            fontSize: cq(pt), color: ink, whiteSpace: 'nowrap', lineHeight: 1.05,
+            transform: rotPlate ? 'rotate(-90deg)' : 'none'
           };
           cell.overlaySubStyle = {
             fontFamily: 'Arial, Helvetica, sans-serif', fontWeight: 700,
@@ -553,9 +632,9 @@ class Component extends DCLogic {
 
   // Every fold/cut edge drawn once, in template twips, so dashes stay continuous.
   buildLines(kind) {
-    const cols = kind === 'deck' ? DECK_COLS : MINI_COLS;
-    const rows = kind === 'deck' ? DECK_ROWS : MINI_ROWS;
-    const bord = kind === 'deck' ? DECK_BORDERS : MINI_BORDERS;
+    const cols = COLS[kind];
+    const rows = ROWS[kind];
+    const bord = BORDERS[kind];
     const xs = [0], ys = [0];
     cols.forEach((w) => xs.push(xs[xs.length - 1] + w));
     rows.forEach((h) => ys.push(ys[ys.length - 1] + h));
@@ -598,14 +677,14 @@ class Component extends DCLogic {
   }
 
   viewBox(kind) {
-    const cols = kind === 'deck' ? DECK_COLS : MINI_COLS;
-    const rows = kind === 'deck' ? DECK_ROWS : MINI_ROWS;
+    const cols = COLS[kind];
+    const rows = ROWS[kind];
     return '0 0 ' + cols.reduce((a, b) => a + b, 0) + ' ' + rows.reduce((a, b) => a + b, 0);
   }
 
   gridStyle(kind) {
-    const cols = kind === 'deck' ? DECK_COLS : MINI_COLS;
-    const rows = kind === 'deck' ? DECK_ROWS : MINI_ROWS;
+    const cols = COLS[kind];
+    const rows = ROWS[kind];
     const totalW = cols.reduce((a, b) => a + b, 0);
     const totalH = rows.reduce((a, b) => a + b, 0);
     const actual = this.state.trueScale;
@@ -634,7 +713,7 @@ class Component extends DCLogic {
     }
     this.setState({ busy: true, status: 'Building documents…' });
     try {
-      const payloadFor = (kind) => chars.map((c) => ({
+      const payloadFor = (kind, list) => list.map((c) => ({
         nameLines: [c.name1, c.name2].map((s) => (s || '').trim()).filter(Boolean),
         subtitle: c.subtitle,
         boxColor: c.boxColor,
@@ -645,25 +724,32 @@ class Component extends DCLogic {
         plate: c.plate,
         front: {
           blob: c.front.blob, width: c.front.width, height: c.front.height,
-          crop: kind === 'mini' ? c.crops.mini : c.crops.deckFront
+          crop: kind === 'deck' ? c.crops.deckFront : (c.crops[kind] || crop0())
         },
         back: { blob: c.back.blob, width: c.back.width, height: c.back.height, crop: c.crops.deckBack }
       }));
       const stamp = chars.map((c) => [c.name1, c.name2].filter(Boolean).join(' ')).join(' + ').slice(0, 60) || 'Boxes';
-      for (const kind of ['deck', 'mini']) {
+      // Mini nets come from two different templates, so standard and large characters
+      // are written to separate documents.
+      const std = chars.filter((c) => (c.miniSize || 'standard') !== 'large');
+      const lrg = chars.filter((c) => (c.miniSize || 'standard') === 'large');
+      const jobs = [['deck', chars, ' Deck Boxes']];
+      if (std.length) jobs.push(['mini', std, ' Mini Boxes']);
+      if (lrg.length) jobs.push(['miniLarge', lrg, ' Large Mini Boxes']);
+      for (const [kind, list, suffix] of jobs) {
         const buf = await lib.loadTemplate(kind);
-        const blob = await lib.buildDoc(kind, buf, payloadFor(kind), window.JSZip, {
+        const blob = await lib.buildDoc(kind, buf, payloadFor(kind, list), window.JSZip, {
           upright: this.props.uprightMethod ?? 'rotate'
         });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = stamp + (kind === 'deck' ? ' Deck Boxes' : ' Mini Boxes') + '.docx';
+        a.download = stamp + suffix + '.docx';
         document.body.appendChild(a);
         a.click();
         a.remove();
         setTimeout(() => URL.revokeObjectURL(a.href), 4000);
       }
-      this.setState({ busy: false, status: 'Downloaded both documents.' });
+      this.setState({ busy: false, status: 'Downloaded ' + jobs.length + ' documents.' });
     } catch (e) {
       this.setState({ busy: false, status: 'Failed: ' + e.message });
     }
@@ -673,9 +759,10 @@ class Component extends DCLogic {
     const s = this.state;
     const c = this.cur();
     const lib = s.lib;
-    const cropKey = s.cropTarget || 'deckFront';
+    const mk = this.miniKind();
+    const cropKey = this.cropKey();
     const crop = (c.crops && c.crops[cropKey]) || crop0();
-    const plate = c.plate || { tint: 'white', opacity: 0.75, offsetX: 0, offsetY: 0, fontSize: 18, miniFontSize: 12 };
+    const plate = c.plate || { tint: 'white', opacity: 0.75, offsetX: 0, offsetY: 0, fontSize: 18, miniFontSize: 12, largeFontSize: 16 };
     const ratio = lib ? lib.contrast(c.boxColor, c.fontColor) : 0;
     const ok = ratio >= (this.props.contrastTarget ?? 4.5);
     const accent = this.props.accent ?? '#CC9900';
@@ -765,7 +852,8 @@ class Component extends DCLogic {
       setGuideNudgeX: (e) => this.patch({ guideNudge: Object.assign({ x: 0, y: 0 }, c.guideNudge, { x: Number(e.target.value) }) }),
       setGuideNudgeY: (e) => this.patch({ guideNudge: Object.assign({ x: 0, y: 0 }, c.guideNudge, { y: Number(e.target.value) }) }),
       cropTabs: [
-        ['deckFront', 'Deck front'], ['deckBack', 'Deck back'], ['mini', 'Mini']
+        ['deckFront', 'Deck front'], ['deckBack', 'Deck back'],
+        [mk, mk === 'miniLarge' ? 'Mini (large)' : 'Mini']
       ].map(([key, label]) => ({
         label,
         select: () => this.setState({ cropTarget: key }),
@@ -808,22 +896,39 @@ class Component extends DCLogic {
       plateMiniFontSize: plate.miniFontSize || 12,
       plateMiniFontLabel: (plate.miniFontSize || 12) + ' pt',
       setPlateMiniFontSize: (e) => this.setPlate({ miniFontSize: Number(e.target.value) }),
-      resetPlate: () => this.setPlate({ tint: 'white', opacity: 0.75, offsetX: 0, offsetY: 0, fontSize: 18, miniFontSize: 12 }),
+      plateLargeFontSize: plate.largeFontSize || 16,
+      plateLargeFontLabel: (plate.largeFontSize || 16) + ' pt',
+      setPlateLargeFontSize: (e) => this.setPlate({ largeFontSize: Number(e.target.value) }),
+      resetPlate: () => this.setPlate({
+        tint: 'white', opacity: 0.75, offsetX: 0, offsetY: 0,
+        fontSize: 18, miniFontSize: 12, largeFontSize: 16
+      }),
 
       deckTapers: lib ? lib.taperLines('deck', c.taper ?? 0.3) : [],
-      miniTapers: lib ? lib.taperLines('mini', c.taper ?? 0.3) : [],
+      miniTapers: lib ? lib.taperLines(mk, c.taper ?? 0.3) : [],
       deckLines: this.buildLines('deck'),
-      miniLines: this.buildLines('mini'),
+      miniLines: this.buildLines(mk),
       deckViewBox: this.viewBox('deck'),
-      miniViewBox: this.viewBox('mini'),
+      miniViewBox: this.viewBox(mk),
       svgStyle: { position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' },
 
       deckCells: this.buildCells('deck', c),
-      miniCells: this.buildCells('mini', c),
+      miniCells: this.buildCells(mk, c),
       deckGridStyle: this.gridStyle('deck'),
-      miniGridStyle: this.gridStyle('mini'),
+      miniGridStyle: this.gridStyle(mk),
       deckDims: this.dims('deck'),
-      miniDims: this.dims('mini'),
+      miniDims: this.dims(mk),
+      miniTitle: mk === 'miniLarge' ? 'Large mini box net' : 'Mini box net',
+      miniSizes: [['standard', 'Standard'], ['large', 'Large']].map(([v, label]) => ({
+        label,
+        select: () => this.patch({ miniSize: v }),
+        style: {
+          background: (c.miniSize || 'standard') === v ? '#2A3037' : 'transparent',
+          color: (c.miniSize || 'standard') === v ? '#F3F0EA' : '#8B929B',
+          border: '1px solid ' + ((c.miniSize || 'standard') === v ? '#4A525B' : '#2E353C'),
+          font: 'inherit', fontSize: '12px', padding: '5px 12px', borderRadius: '4px', cursor: 'pointer'
+        }
+      })),
       scaleLabel: s.trueScale ? 'Actual size' : 'Fit width',
       toggleScale: () => this.setState((st) => ({ trueScale: !st.trueScale })),
       scaleStyle: {
@@ -835,7 +940,7 @@ class Component extends DCLogic {
       scrollStyle: { overflowX: 'auto', display: 'flex' },
 
       generate: () => this.generate(),
-      generateLabel: s.busy ? 'Building…' : 'Generate both Word documents',
+      generateLabel: s.busy ? 'Building…' : 'Generate Word documents',
       generateStyle: {
         background: s.busy ? '#3C434B' : accent, color: s.busy ? '#8B929B' : '#131518',
         border: 'none', borderRadius: '4px', font: 'inherit', fontWeight: 600,
