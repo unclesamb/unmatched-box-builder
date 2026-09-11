@@ -324,6 +324,227 @@ function clearOuterEdges(block) {
   });
 }
 
+// ---- corner tapers -----------------------------------------------------
+// The real cuts don't turn a sharp inner corner: every tab is trimmed back on a
+// diagonal from a fold vertex out to a point on the tab's outer edge, and the
+// sliver between that diagonal and the template's cut line is discarded. Each
+// taper therefore REPLACES one straight cell edge, which gets blanked.
+// cols/rows mirror DECK_COLS / DECK_ROWS in index.html (deck bottom row already grown).
+export const NETS = {
+  deck: {
+    cols: [864, 1152, 1152, 3744, 1152, 3816, 1152, 1152, 864],
+    rows: [432, 1152, 1152, 5184, 1152, 1152, 767],
+    // Floating table, centred on the margin box (720 + (14400 - 15048) / 2),
+    // anchored to the page at tblpY.
+    originX: 396,
+    originY: 335,
+    // The top tabs run off the top of the table into the page margin, so only part
+    // of their taper is drawable; scale it to keep the bottom tabs' angle.
+    marginScale: 432 / 767
+  },
+  mini: {
+    cols: [595, 1581, 2376, 1578, 1578, 1581, 2389, 1581, 596],
+    rows: [1584, 3600, 1584],
+    // Pinned by floatTable() below: left margin + the template's -275 indent, page top margin.
+    originX: 445,
+    originY: 720
+  }
+};
+
+// [colVertex, rowVertex, farLine, axis, sign, flags]
+// The diagonal starts at grid vertex (colVertex, rowVertex) — where a fold meets the
+// tab's outer boundary — and ends on grid line farLine, inset by the taper distance
+// along axis in direction sign. 'x' spans a vertical cell edge, 'y' a horizontal one.
+// flags: 'm' = scaled to the page margin, 'b' = the straight edge it replaces is
+// blanked (the rest stay: they're still useful when cutting).
+export const TAPERS = {
+  deck: [
+    [3, 1, 0, 'x', 1, 'mb'], [4, 1, 0, 'x', -1, 'mb'], [5, 1, 0, 'x', 1, 'mb'], [6, 1, 0, 'x', -1, 'mb'],
+    [3, 6, 7, 'x', 1, 'b'], [4, 6, 7, 'x', -1, 'b'], [5, 6, 7, 'x', 1, 'b'], [6, 6, 7, 'x', -1, 'b'],
+    [2, 3, 2, 'x', -1], [2, 4, 5, 'x', -1], [7, 3, 2, 'x', 1], [7, 4, 5, 'x', 1],
+    [1, 3, 0, 'y', 1, 'b'], [1, 4, 0, 'y', -1, 'b'], [8, 3, 9, 'y', 1, 'b'], [8, 4, 9, 'y', -1, 'b']
+  ],
+  mini: [
+    [2, 0, 0, 'y', 1], [7, 0, 9, 'y', 1],
+    [1, 1, 0, 'y', 1], [8, 1, 9, 'y', 1], [3, 1, 5, 'y', -1],
+    [1, 2, 0, 'y', -1], [8, 2, 9, 'y', -1], [3, 2, 5, 'y', 1],
+    [2, 3, 0, 'y', -1], [7, 3, 9, 'y', -1]
+  ]
+};
+
+function grid(net) {
+  const xs = [0], ys = [0];
+  net.cols.forEach((w) => xs.push(xs[xs.length - 1] + w));
+  net.rows.forEach((h) => ys.push(ys[ys.length - 1] + h));
+  return { xs, ys };
+}
+
+// Endpoints in net twips, measured from the table's top-left corner.
+export function taperLines(kind, inches) {
+  const net = NETS[kind];
+  const specs = TAPERS[kind] || [];
+  const t = Math.round((Number(inches) || 0) * 1440);
+  if (!net || t <= 0) return [];
+  const { xs, ys } = grid(net);
+  return specs.map(([ci, ri, far, axis, sign, flags]) => {
+    const x1 = xs[ci], y1 = ys[ri];
+    // The sideways travel can't run past the cell it crosses.
+    const line = axis === 'x' ? xs : ys;
+    const at = axis === 'x' ? ci : ri;
+    const next = line[at + sign];
+    const room = next === undefined ? Infinity : Math.abs(next - line[at]);
+    let d = Math.min(t, Math.round(room * 0.9));
+    if (flags && flags.indexOf('m') > -1 && net.marginScale) d = Math.round(d * net.marginScale);
+    return axis === 'x'
+      ? { x1, y1, x2: x1 + sign * d, y2: ys[far] }
+      : { x1, y1, x2: xs[far], y2: y1 + sign * d };
+  });
+}
+
+// The straight cell edge each taper stands in for: coordinates for the preview, and
+// the two cell borders to blank in Word.
+export function taperEdges(kind) {
+  const net = NETS[kind];
+  const specs = TAPERS[kind] || [];
+  if (!net) return { segs: [], cells: [] };
+  const { xs, ys } = grid(net);
+  const segs = [], cells = [];
+  specs.forEach(([ci, ri, far, axis, sign, flags]) => {
+    if (!flags || flags.indexOf('b') === -1) return;
+    if (axis === 'x') {
+      const r = Math.min(ri, far);
+      segs.push(xs[ci] + ':' + ys[r] + ':' + xs[ci] + ':' + ys[r + 1]);
+      cells.push({ r, c: ci - 1, side: 'right' }, { r, c: ci, side: 'left' });
+    } else {
+      const lo = Math.min(ci, far), hi = Math.max(ci, far);
+      for (let c = lo; c < hi; c++) {
+        segs.push(xs[c] + ':' + ys[ri] + ':' + xs[c + 1] + ':' + ys[ri]);
+        cells.push({ r: ri - 1, c, side: 'bottom' }, { r: ri, c, side: 'top' });
+      }
+    }
+  });
+  return { segs, cells };
+}
+
+const EMU = 635; // per twip
+
+function taperShape(line, originX, originY, id, nx, ny) {
+  const left = Math.min(line.x1, line.x2), top = Math.min(line.y1, line.y2);
+  const cx = Math.abs(line.x2 - line.x1), cy = Math.abs(line.y2 - line.y1);
+  // prstGeom "line" runs top-left to bottom-right; mirror it for the other diagonal.
+  const flip = (line.x2 - line.x1 > 0) !== (line.y2 - line.y1 > 0) ? ' flipH="1"' : '';
+  return '<w:r><w:drawing><wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0"' +
+    // In front of the cell shading and artwork — behindDoc="1" hid every guide that
+    // crossed a filled panel, leaving only the stubs that overhung white paper.
+    ' relativeHeight="251900000" behindDoc="0" locked="0" layoutInCell="0" allowOverlap="1">' +
+    '<wp:simplePos x="0" y="0"/>' +
+    `<wp:positionH relativeFrom="page"><wp:posOffset>${(originX + left + nx) * EMU}</wp:posOffset></wp:positionH>` +
+    `<wp:positionV relativeFrom="page"><wp:posOffset>${(originY + top + ny) * EMU}</wp:posOffset></wp:positionV>` +
+    `<wp:extent cx="${cx * EMU}" cy="${cy * EMU}"/>` +
+    '<wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapNone/>' +
+    `<wp:docPr id="${id}" name="Corner cut ${id}"/><wp:cNvGraphicFramePr/>` +
+    '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">' +
+    '<a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">' +
+    `<wps:wsp><wps:cNvCnPr/><wps:spPr><a:xfrm${flip}><a:off x="0" y="0"/>` +
+    `<a:ext cx="${cx * EMU}" cy="${cy * EMU}"/></a:xfrm>` +
+    '<a:prstGeom prst="line"><a:avLst/></a:prstGeom>' +
+    '<a:ln w="9525" cap="flat"><a:solidFill><a:srgbClr val="000000"/></a:solidFill>' +
+    '<a:prstDash val="dash"/></a:ln></wps:spPr><wps:bodyPr/></wps:wsp>' +
+    '</a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>';
+}
+
+function nilBorder(cell, side) {
+  const tag = `<w:${side} w:val="nil" w:sz="0" w:space="0" w:color="auto"/>`;
+  if (!/<w:tcBorders>/.test(cell)) {
+    const w = cell.match(/<w:tcW[^>]*\/>/);
+    const anchor = w ? w[0] : '<w:tcPr>';
+    return cell.replace(anchor, anchor + '<w:tcBorders>' + tag + '</w:tcBorders>');
+  }
+  const re = new RegExp('<w:' + side + '[^>]*/>');
+  return re.test(cell)
+    ? cell.replace(re, tag)
+    : cell.replace('<w:tcBorders>', '<w:tcBorders>' + tag);
+}
+
+// Word's TableGrid style redraws any border a cell doesn't override, so both cells
+// either side of a replaced edge have to say nil explicitly.
+function blankTaperEdges(block, kind, inches) {
+  if (Math.round((Number(inches) || 0) * 1440) <= 0) return block;
+  const wanted = {};
+  taperEdges(kind).cells.forEach((e) => {
+    if (e.r < 0 || e.c < 0) return;
+    (wanted[e.r + ',' + e.c] = wanted[e.r + ',' + e.c] || []).push(e.side);
+  });
+  const rows = block.match(/<w:tr\b[\s\S]*?<\/w:tr>/g) || [];
+  let out = block;
+  rows.forEach((row, r) => {
+    const cells = row.match(/<w:tc>[\s\S]*?<\/w:tc>/g) || [];
+    let newRow = row, touched = false;
+    cells.forEach((cell, c) => {
+      const sides = wanted[r + ',' + c];
+      if (!sides) return;
+      let next = cell;
+      sides.forEach((side) => { next = nilBorder(next, side); });
+      const i = newRow.indexOf(cell);
+      if (i < 0) return;
+      newRow = newRow.slice(0, i) + next + newRow.slice(i + cell.length);
+      touched = true;
+    });
+    if (!touched) return;
+    const j = out.indexOf(row);
+    if (j > -1) out = out.slice(0, j) + newRow + out.slice(j + row.length);
+  });
+  return out;
+}
+
+// Page-anchored guides are only true if the rendered grid matches the nominal twips.
+// Two template defaults break that: no <w:tblLayout>, so Word is in autofit and may
+// recompute column widths from cell content; and bare <w:trHeight>, which means
+// hRule="atLeast", so a row can render taller than its value. Both are pinned here.
+function pinGrid(block) {
+  let out = block.replace(/<w:trHeight w:val="(\d+)"\/>/g, '<w:trHeight w:hRule="exact" w:val="$1"/>');
+  if (!/<w:tblLayout/.test(out)) {
+    out = /<w:tblCellMar>/.test(out)
+      ? out.replace('<w:tblCellMar>', '<w:tblLayout w:type="fixed"/><w:tblCellMar>')
+      : out.replace('</w:tblPr>', '<w:tblLayout w:type="fixed"/></w:tblPr>');
+  }
+  return out;
+}
+
+// Normalise the table's page position too: the deck template shipped tblpXSpec="center"
+// (Word recomputes and rounds that itself) and the mini a -275 tblInd that Word applies
+// ON TOP of tblpX — either one leaves the grid a point or two off from originX.
+function floatTable(block, net) {
+  const pin = `<w:tblpPr w:leftFromText="180" w:rightFromText="180" w:vertAnchor="page"` +
+    ` w:horzAnchor="page" w:tblpX="${net.originX}" w:tblpY="${net.originY}"/>`;
+  let out = pinGrid(block).replace(/<w:tblInd w:w="-?\d+" w:type="dxa"\/>/g, '<w:tblInd w:w="0" w:type="dxa"/>');
+  out = /<w:tblpPr[^>]*\/>/.test(out)
+    ? out.replace(/<w:tblpPr[^>]*\/>/, pin)
+    : out.replace('<w:tblStyle w:val="TableGrid"/>', '<w:tblStyle w:val="TableGrid"/>' + pin);
+  return out;
+}
+
+// The guides live in a collapsed body-level paragraph in front of the table, NOT in a
+// cell: anchored inside a cell, Word and most converters resolve posOffset against the
+// cell's own frame instead of the page, so every guide came out shifted by the host
+// cell's offset. Both nets' tables are floated (vertAnchor=page), so an extra
+// zero-height paragraph ahead of them can't move them.
+function applyTapers(block, kind, inches, counter, nudge) {
+  const net = NETS[kind];
+  const lines = taperLines(kind, inches);
+  if (!net || !lines.length) return block;
+  let out = blankTaperEdges(block, kind, inches);
+  out = floatTable(out, net);
+  // Calibration valve: whole-guide offset in points, for trimming any residual drift
+  // between a given Word build's rendered grid and the nominal twips.
+  const nx = Math.round(((nudge && nudge.x) || 0) * 20);
+  const ny = Math.round(((nudge && nudge.y) || 0) * 20);
+  const runs = lines.map((l) => taperShape(l, net.originX, net.originY, counter.n++, nx, ny)).join('');
+  const holder = '<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="1" w:lineRule="exact"/>' +
+    '<w:rPr><w:sz w:val="2"/></w:rPr></w:pPr>' + runs + '</w:p>';
+  return holder + out;
+}
+
 function mimeExt(type) {
   if (type === 'image/png') return 'png';
   if (type === 'image/gif') return 'gif';
@@ -415,6 +636,7 @@ export async function buildDoc(kind, templateBuf, characters, JSZip, opts) {
     if (kind === 'deck') b = growBottomRow(b);
     if (kind === 'deck') b = clearOuterEdges(b);
     b = applyImages(b, tpl.images, specs);
+    b = applyTapers(b, kind, c.taper, counter, c.guideNudge);
     blocks.push(b);
   }
 

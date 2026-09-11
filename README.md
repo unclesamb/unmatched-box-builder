@@ -1,9 +1,8 @@
 # Unmatched box builder
 
-A browser tool that generates print-ready Word documents for custom Unmatched deck
-boxes and mini boxes. Drop in a card scan and a card back, set the name and colours,
-and it produces a .docx whose cut/fold geometry is byte-identical to the original
-Battle of Legends vol. 3 templates.
+A browser tool that generates print-ready Word doc templates for custom Unmatched deck
+boxes and mini boxes. Drop in scans of the card back and character art, set the name
+and colors, and it produces a .docx using the Tom Teaches templates.
 
 ## Files
 
